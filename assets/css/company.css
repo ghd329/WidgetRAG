@@ -1,0 +1,329 @@
+/* 기본 레이아웃 구성 */
+.company-layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* 사이드바 스타일 */
+.sidebar {
+    width: 250px;
+    background: #1e2b3c;
+    color: white;
+    padding: 30px 20px;
+}
+
+.sidebar h2 {
+    font-size: 26px;
+    margin-bottom: 40px;
+    text-align: center;
+}
+
+.sidebar ul {
+    list-style: none;
+}
+
+.sidebar li {
+    padding: 16px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: .25s;
+}
+
+.sidebar li:hover,
+.sidebar li.active {
+    background: #2563eb;
+}
+
+.sidebar i {
+    margin-right: 12px;
+}
+
+/* 메인 콘텐츠 및 상단 바 */
+.main {
+    flex: 1;
+    padding: 40px 35px;
+}
+
+.top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.top h1 {
+    font-size: 32px;
+    margin-bottom: 6px;
+}
+
+.top p {
+    color: #777;
+}
+
+.user-box {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    font-weight: 600;
+}
+
+/* 로그아웃 버튼 */
+.logout {
+    background: #2563eb;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.logout:hover {
+    background: #1d4ed8;
+}
+
+/* 그리드 및 카드 레이아웃 */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: #fff;
+    padding: 25px;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .07);
+}
+
+.stat-card h3 {
+    font-size: 15px;
+    color: #666;
+    margin-bottom: 12px;
+}
+
+.stat-card span {
+    font-size: 30px;
+    font-weight: 800;
+    color: #2563eb;
+}
+
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+.section-title {
+    margin: 35px 0 15px;
+    font-size: 20px;
+}
+
+/* 테이블(데이터 목록) */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+}
+
+th {
+    background: #f6f8fc;
+}
+
+tr:hover {
+    background: #fafafa;
+}
+
+/* 폼 요소 및 입력창 */
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 13px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+}
+
+/* 수정 및 삭제 버튼 */
+.edit {
+    background: #64748b;
+    color: #fff;
+    border: none;
+    padding: 8px 13px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-right: 6px;
+}
+
+.delete {
+    background: #ef4444;
+    color: #fff;
+    border: none;
+    padding: 8px 13px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+/* 업로드 박스 및 특수 컴포넌트 */
+.upload-box {
+    border: 2px dashed #cbd5e1;
+    border-radius: 16px;
+    padding: 55px;
+    text-align: center;
+}
+
+.upload-box i {
+    font-size: 58px;
+    color: #2563eb;
+    margin-bottom: 20px;
+}
+
+.upload-box h3 {
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+
+.upload-box p {
+    color: #777;
+    margin-bottom: 25px;
+}
+
+.code-box {
+    width: 100%;
+    height: 250px;
+    padding: 18px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    background: #f8fafc;
+    font-family: monospace;
+    resize: none;
+}
+
+.notice {
+    margin-top: 20px;
+    background: #eef4ff;
+    padding: 18px;
+    border-radius: 12px;
+    line-height: 1.7;
+    color: #475569;
+}
+
+.answer-box {
+    width: 100%;
+    height: 260px;
+    padding: 16px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    resize: none;
+}
+
+.question-item {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+
+.question-item:hover {
+    background: #f6f8fc;
+}
+
+/* 반응형 미디어 쿼리 (태블릿/모바일) */
+@media (max-width: 1000px) {
+    .stats-grid,
+    .grid-2,
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+        width: 220px;
+    }
+}
+
+/* ===========================
+   Dark Mode
+=========================== */
+
+body.dark-mode {
+    background: #111827;
+    color: #f9fafb;
+}
+
+body.dark-mode .main {
+    background: #111827;
+}
+
+body.dark-mode .card,
+body.dark-mode .stat-card {
+    background: #1f2937;
+    color: #f9fafb;
+}
+
+body.dark-mode h1,
+body.dark-mode h2 {
+    color: #f9fafb;
+}
+
+body.dark-mode h3 {
+    color: #d1d5db;
+}
+
+body.dark-mode p {
+    color: #d1d5db !important;
+}
+
+/* Dashboard 카드 숫자 */
+body.dark-mode .stat-card span {
+    color: #60a5fa !important;
+}
+
+/* Dashboard 카드 제목 */
+body.dark-mode .stat-card h3 {
+    color: #9ca3af !important;
+}
+
+body.dark-mode input,
+body.dark-mode select,
+body.dark-mode textarea {
+    background: #374151;
+    color: #f9fafb;
+    border: 1px solid #4b5563;
+}
+
+body.dark-mode table {
+    color: #f9fafb;
+}
+
+body.dark-mode th {
+    background: #374151;
+    color: #f9fafb;
+}
+
+body.dark-mode td {
+    color: #f9fafb;
+    border-color: #4b5563;
+}
+
+body.dark-mode .sidebar {
+    background: #030712;
+}
+
+body.dark-mode .sidebar li:hover,
+body.dark-mode .sidebar li.active {
+    background: #2563eb;
+}

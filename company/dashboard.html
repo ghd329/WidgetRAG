@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <script src="https://kit.fontawesome.com/8f3f0f6f0f.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="../assets/css/common.css">
+    <link rel="stylesheet" href="../assets/css/company.css">
+    <script src="../assets/js/auth.js"></script>
+    <script src="../assets/js/api.js"></script>
+    <script src="../assets/js/company.js"></script>
+</head>
+<body onload="initPage()">
+    <div class="company-layout">
+        
+        <aside class="sidebar">
+            <h2>Biz Chatbot</h2>
+            <ul>
+                <li class="active" onclick="location.href='dashboard.html'">
+                    <i class="fa-solid fa-chart-line"></i>관리자 홈
+                </li>
+                <li onclick="location.href='upload.html'">
+                    <i class="fa-solid fa-file-arrow-up"></i>데이터 업로드
+                </li>
+                <li onclick="location.href='products.html'">
+                    <i class="fa-solid fa-box"></i>상품 관리
+                </li>
+                <li onclick="location.href='questions.html'">
+                    <i class="fa-solid fa-comments"></i>고객 질문 관리
+                </li>
+                <li onclick="location.href='answers.html'">
+                    <i class="fa-solid fa-brain"></i>AI 답변 관리
+                </li>
+                <li onclick="location.href='script.html'">
+                    <i class="fa-solid fa-code"></i>위젯 설치 코드
+                </li>
+                <li onclick="location.href='settings.html'">
+                    <i class="fa-solid fa-gear"></i>설정
+                </li>
+            </ul>
+        </aside>
+
+        <main class="main">
+            <div class="top">
+                <div>
+                    <h1>기업 관리자 홈</h1>
+                    <p>상품 데이터, 고객 질문, 챗봇 응답 현황을 관리하세요.</p>
+                </div>
+                <div class="user-box">
+                    <span>기업 관리자님</span>
+                    <button class="logout" onclick="logout()">로그아웃</button>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>등록 상품</h3>
+                    <span>128개</span>
+                </div>
+                <div class="stat-card">
+                    <h3>고객 질문</h3>
+                    <span>2,341개</span>
+                </div>
+                <div class="stat-card">
+                    <h3>AI 답변</h3>
+                    <span>2,118개</span>
+                </div>
+                <div class="stat-card">
+                    <h3>챗봇 상태</h3>
+                    <span>정상</span>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3 style="margin-bottom: 15px;">최근 고객 질문</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>질문</th>
+                                <th>시간</th>
+                                <th>상태</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>배송은 얼마나 걸리나요?</td>
+                                <td>5분 전</td>
+                                <td>답변 완료</td>
+                            </tr>
+                            <tr>
+                                <td>교환 가능한가요?</td>
+                                <td>12분 전</td>
+                                <td>답변 완료</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <h3 style="margin-bottom: 15px;">최근 업로드 내역</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>파일명</th>
+                                <th>형식</th>
+                                <th>상태</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>products.csv</td>
+                                <td>CSV</td>
+                                <td>성공</td>
+                            </tr>
+                            <tr>
+                                <td>faq.txt</td>
+                                <td>TXT</td>
+                                <td>성공</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+    </div>
+</body>
+</html>

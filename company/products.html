@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products</title>
+    <script src="https://kit.fontawesome.com/8f3f0f6f0f.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="../assets/css/common.css">
+    <link rel="stylesheet" href="../assets/css/company.css">
+    <script src="../assets/js/auth.js"></script>
+    <script src="../assets/js/api.js"></script>
+    <script src="../assets/js/company.js"></script>
+</head>
+<body onload="initPage()">
+    <div class="company-layout">
+        
+        <aside class="sidebar">
+            <h2>Biz Chatbot</h2>
+            <ul>
+                <li onclick="location.href='dashboard.html'">
+                    <i class="fa-solid fa-chart-line"></i>관리자 홈
+                </li>
+                <li onclick="location.href='upload.html'">
+                    <i class="fa-solid fa-file-arrow-up"></i>데이터 업로드
+                </li>
+                <li class="active" onclick="location.href='products.html'">
+                    <i class="fa-solid fa-box"></i>상품 관리
+                </li>
+                <li onclick="location.href='questions.html'">
+                    <i class="fa-solid fa-comments"></i>고객 질문 관리
+                </li>
+                <li onclick="location.href='answers.html'">
+                    <i class="fa-solid fa-brain"></i>AI 답변 관리
+                </li>
+                <li onclick="location.href='script.html'">
+                    <i class="fa-solid fa-code"></i>위젯 설치 코드
+                </li>
+                <li onclick="location.href='settings.html'">
+                    <i class="fa-solid fa-gear"></i>설정
+                </li>
+            </ul>
+        </aside>
+
+        <main class="main">
+            <div class="top">
+                <div>
+                    <h1>상품 관리</h1>
+                    <p>상품을 추가, 수정, 삭제하고 상품 리스트를 확인합니다.</p>
+                </div>
+                <div class="user-box">
+                    <span>기업 관리자님</span>
+                    <button class="logout" onclick="logout()">로그아웃</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom: 18px;">상품 추가</h3>
+                <div class="form-grid">
+                    <input placeholder="상품명">
+                    <input placeholder="가격">
+                    <input placeholder="카테고리">
+                    <input placeholder="상품 설명">
+                </div>
+                <button class="primary-btn" style="margin-top: 18px;" onclick="addProduct()">상품 추가</button>
+            </div>
+
+            <h2 class="section-title">상품 리스트</h2>
+            <div class="card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>상품명</th>
+                            <th>가격</th>
+                            <th>카테고리</th>
+                            <th>설명</th>
+                            <th>관리</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>반팔 티셔츠</td>
+                            <td>19,900원</td>
+                            <td>의류</td>
+                            <td>기본 면 티셔츠</td>
+                            <td>
+                                <button class="edit">수정</button>
+                                <button class="delete">삭제</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>러닝화</td>
+                            <td>59,000원</td>
+                            <td>신발</td>
+                            <td>가벼운 러닝화</td>
+                            <td>
+                                <button class="edit">수정</button>
+                                <button class="delete">삭제</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+
+    </div>
+</body>
+</html>

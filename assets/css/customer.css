@@ -1,0 +1,113 @@
+/* 전체 레이아웃 (고객 화면) */
+.customer-body {
+    min-height: 100vh;
+    background: #eef4ff;
+    display: flex;
+    justify-content: center;
+    padding: 40px 18px;
+}
+
+/* 챗봇 레이아웃 감싸는 영역 */
+.chat-wrap {
+    width: 100%;
+    max-width: 760px;
+    background: #fff;
+    border-radius: 24px;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, .1);
+    overflow: hidden;
+}
+
+/* 챗봇 상단 헤더 */
+.chat-header {
+    background: #2563eb;
+    color: #fff;
+    padding: 22px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.chat-header h1 {
+    font-size: 22px;
+}
+
+.chat-header a {
+    background: rgba(255, 255, 255, .18);
+    padding: 9px 13px;
+    border-radius: 10px;
+    font-weight: 700;
+}
+
+/* 실시간 채팅창 스크롤 영역 */
+.chat-box {
+    height: 520px;
+    padding: 25px;
+    overflow-y: auto;
+    background: #f8fafc;
+}
+
+/* 말풍선 공통 스타일 */
+.message {
+    max-width: 78%;
+    padding: 14px 16px;
+    border-radius: 16px;
+    margin-bottom: 14px;
+    line-height: 1.55;
+}
+
+/* 챗봇 답변 (왼쪽 정렬) */
+.bot {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+}
+
+/* 사용자 질문 (오른쪽 정렬) */
+.user {
+    background: #2563eb;
+    color: #fff;
+    margin-left: auto;
+}
+
+/* 하단 입력창 영역 */
+.chat-input {
+    display: flex;
+    gap: 10px;
+    padding: 18px;
+    border-top: 1px solid #eee;
+    background: #fff;
+}
+
+.chat-input input {
+    flex: 1;
+    padding: 14px;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+}
+
+/* 지난 대화 내역(History) 목록 */
+.history-list {
+    padding: 25px;
+    background: #f8fafc;
+    min-height: 520px;
+}
+
+.history-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 14px;
+}
+
+.history-card .date {
+    font-size: 13px;
+    color: #777;
+    margin-bottom: 10px;
+}
+
+/* 데이터가 없을 때 표시 */
+.empty {
+    padding: 40px;
+    text-align: center;
+    color: #777;
+}
