@@ -87,6 +87,7 @@ public class MemberService {
         return new LoginResponseDto(
                 member.getId(),
                 member.getEmail(),
+                company.getId(),
                 company.getClientCode(),
                 company.getCompanyName()
         );
