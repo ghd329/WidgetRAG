@@ -38,6 +38,7 @@ public class MemberController {
         HttpSession session = httpRequest.getSession(true);
         session.setAttribute("memberId", response.memberId());
         session.setAttribute("clientCode", response.clientCode());
+        session.setAttribute("companyId", response.companyId() );
 
         return ResponseEntity.ok(response);
     }

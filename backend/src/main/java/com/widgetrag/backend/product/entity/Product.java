@@ -88,4 +88,8 @@ public class Product {
     public boolean isDeleted() {
         return this.deletedAt != null;
     }
+
+    public void updateStoragePath(String storagePath) {
+        this.storagePath = storagePath;
+    }
 }
