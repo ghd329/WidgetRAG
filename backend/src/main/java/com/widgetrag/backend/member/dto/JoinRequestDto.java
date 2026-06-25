@@ -1,8 +1,8 @@
 package com.widgetrag.backend.member.dto;
 
-// 신규 가입
-public record SignupRequestDto(
-        String companyName,
+// 기존 회사 합류
+public record JoinRequestDto(
+        String clientCode,
         String email,
         String password
 ) {}
