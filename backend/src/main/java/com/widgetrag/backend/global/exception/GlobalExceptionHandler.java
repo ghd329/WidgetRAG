@@ -90,4 +90,10 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ErrorResponse(e.getMessage(), HttpStatus.NOT_FOUND.value(), LocalDateTime.now()));
     }
+
+    @ExceptionHandler(TempFileNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleTempFileNotFound(TempFileNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.GONE)
+                .body(new ErrorResponse(e.getMessage(), HttpStatus.GONE.value(), LocalDateTime.now()));
+    }
 }

@@ -5,6 +5,7 @@ import com.widgetrag.backend.company.repository.CompanyRepository;
 import com.widgetrag.backend.config.StorageProperties;
 import com.widgetrag.backend.member.entity.Member;
 import com.widgetrag.backend.member.repository.MemberRepository;
+import com.widgetrag.backend.product.dto.CsvUploadConfirmRequestDto;
 import com.widgetrag.backend.product.dto.IncrementalUploadResultDto;
 import com.widgetrag.backend.product.dto.ProductListItemDto;
 import com.widgetrag.backend.product.dto.UploadResponseDto;
@@ -27,7 +28,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class FileStorageService {
 
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("txt", "csv");
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("csv");
     private static final long MAX_FILE_SIZE = 50L * 1024 * 1024;
 
     private final ProductRepository productRepository;
@@ -35,43 +36,7 @@ public class FileStorageService {
     private final MemberRepository memberRepository;
     private final StorageProperties storageProperties;
     private final ProductItemService productItemService;
-
-    // ===== 옛 버전 upload는 완전히 삭제됨 =====
-
-    @Transactional
-    public UploadResponseDto upload(MultipartFile file, Long companyId, Long memberId) {
-
-        String originalFilename = file.getOriginalFilename();
-        String extension = extractExtension(originalFilename);
-        if (!ALLOWED_EXTENSIONS.contains(extension)) {
-            throw new InvalidFileFormatException(originalFilename);
-        }
-        if (file.getSize() > MAX_FILE_SIZE) {
-            throw new FileSizeExceededException(file.getSize(), MAX_FILE_SIZE);
-        }
-
-        Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new IllegalStateException("회사 정보를 찾을 수 없습니다."));
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
-
-        Product product = Product.create(company, member, originalFilename, extension, "");
-        productRepository.save(product);
-
-        String storagePath = buildStoragePath(company.getClientCode(), product.getFileId(), originalFilename);
-        saveToFileSystem(file, storagePath);
-        product.updateStoragePath(storagePath);
-
-        IncrementalUploadResultDto itemResult = null;
-        if ("csv".equalsIgnoreCase(extension)) {
-            itemResult = productItemService.parseAndSaveFromCsv(Paths.get(storagePath), company, product, member);
-        }
-
-        return new UploadResponseDto(
-                product.getFileId(), product.getFileName(), product.getFileType(),
-                product.getStatus(), itemResult
-        );
-    }
+    private final CsvUploadService csvUploadService;
 
     private String extractExtension(String filename) {
         if (filename == null || !filename.contains(".")) {
@@ -164,5 +129,41 @@ public class FileStorageService {
         } catch (IOException e) {
             throw new FileStorageException("파일 삭제 중 오류가 발생했습니다.", e);
         }
+    }
+
+    @Transactional
+    public UploadResponseDto confirmUpload(CsvUploadConfirmRequestDto request, Long companyId, Long memberId) {
+
+        Path tempPath = csvUploadService.resolveTempFile(request.tempFileToken());
+
+        Company company = companyRepository.findById(companyId)
+                .orElseThrow(() -> new IllegalStateException("회사 정보를 찾을 수 없습니다."));
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
+
+        String originalFilename = "uploaded.csv"; // 실제로는 preview 단계에서 원본 파일명도 같이 넘겨받는 게 좋음 (보완 필요)
+        Product product = Product.create(company, member, originalFilename, "csv", "");
+        productRepository.save(product);
+
+        String storagePath = buildStoragePath(company.getClientCode(), product.getFileId(), originalFilename);
+        try {
+            Files.createDirectories(Paths.get(storagePath).getParent());
+            Files.copy(tempPath, Paths.get(storagePath));
+        } catch (IOException e) {
+            throw new FileStorageException("파일 저장 중 오류가 발생했습니다.", e);
+        }
+        product.updateStoragePath(storagePath);
+
+        csvUploadService.saveMappingIfRequested(request, companyId);
+
+        IncrementalUploadResultDto itemResult = productItemService.parseAndSaveFromCsv(
+                tempPath, company, product, member, request.mapping());
+
+        csvUploadService.cleanupTempFile(request.tempFileToken());
+
+        return new UploadResponseDto(
+                product.getFileId(), product.getFileName(), product.getFileType(),
+                product.getStatus(), itemResult
+        );
     }
 }
