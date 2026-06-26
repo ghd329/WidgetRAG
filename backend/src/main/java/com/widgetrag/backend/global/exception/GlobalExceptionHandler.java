@@ -1,11 +1,10 @@
 package com.widgetrag.backend.global.exception;
 
+import com.widgetrag.backend.chat.exception.InvalidClientCodeException;
 import com.widgetrag.backend.company.exception.CompanyNotFoundException;
 import com.widgetrag.backend.member.exception.DuplicateEmailException;
 import com.widgetrag.backend.member.exception.InvalidCredentialsException;
-import com.widgetrag.backend.product.exception.FileSizeExceededException;
-import com.widgetrag.backend.product.exception.FileStorageException;
-import com.widgetrag.backend.product.exception.InvalidFileFormatException;
+import com.widgetrag.backend.product.exception.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -66,5 +65,29 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleIllegalState(IllegalStateException e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ErrorResponse(e.getMessage(), HttpStatus.UNAUTHORIZED.value(), LocalDateTime.now()));
+    }
+
+    @ExceptionHandler(InvalidClientCodeException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidClientCode(InvalidClientCodeException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(e.getMessage(), HttpStatus.BAD_REQUEST.value(), LocalDateTime.now()));
+    }
+
+    @ExceptionHandler(ProductNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleProductNotFound(ProductNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse(e.getMessage(), HttpStatus.NOT_FOUND.value(), LocalDateTime.now()));
+    }
+
+    @ExceptionHandler(ProductAccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleProductAccessDenied(ProductAccessDeniedException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ErrorResponse(e.getMessage(), HttpStatus.FORBIDDEN.value(), LocalDateTime.now()));
+    }
+
+    @ExceptionHandler(ProductItemNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleProductItemNotFound(ProductItemNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse(e.getMessage(), HttpStatus.NOT_FOUND.value(), LocalDateTime.now()));
     }
 }
