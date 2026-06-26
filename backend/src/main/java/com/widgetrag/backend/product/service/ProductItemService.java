@@ -4,6 +4,7 @@ import com.widgetrag.backend.company.entity.Company;
 import com.widgetrag.backend.company.repository.CompanyRepository;
 import com.widgetrag.backend.member.entity.Member;
 import com.widgetrag.backend.member.repository.MemberRepository;
+import com.widgetrag.backend.product.dto.CsvMappingDto;
 import com.widgetrag.backend.product.dto.IncrementalUploadResultDto;
 import com.widgetrag.backend.product.dto.ProductItemCreateRequestDto;
 import com.widgetrag.backend.product.dto.ProductItemResponseDto;
@@ -190,5 +191,71 @@ public class ProductItemService {
                 .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
 
         item.markAsDeleted(member);
+    }
+
+    @Transactional
+    public IncrementalUploadResultDto parseAndSaveFromCsv(Path csvPath, Company company, Product sourceFile,
+                                                          Member uploader, CsvMappingDto mapping) {
+
+        int created = 0;
+        int updated = 0;
+        int skipped = 0;
+
+        try (Reader reader = createBomAwareReader(csvPath)) {
+            Iterable<CSVRecord> records = CSVFormat.DEFAULT.builder()
+                    .setHeader()
+                    .setSkipHeaderRecord(true)
+                    .setTrim(true)
+                    .build()
+                    .parse(reader);
+
+            for (CSVRecord record : records) {
+                String externalId = readColumn(record, mapping.productIdColumn());
+                String productName = readColumn(record, mapping.productNameColumn());
+                String priceRaw = readColumn(record, mapping.priceColumn());
+                int price = priceRaw == null ? 0 : Integer.parseInt(priceRaw.trim().replaceAll("[^0-9]", ""));
+                String category = readColumn(record, mapping.categoryColumn());
+                String description = readColumn(record, mapping.descriptionColumn());
+
+                if (externalId == null || externalId.isBlank()) {
+                    ProductItem item = ProductItem.createFromFile(
+                            company, sourceFile, uploader, null, productName, price, description);
+                    if (!isMeaningless(category)) item.addCategory(category);
+                    productItemRepository.save(item);
+                    created++;
+                    continue;
+                }
+
+                Optional<ProductItem> existing = productItemRepository
+                        .findByCompanyIdAndExternalProductIdAndDeletedAtIsNull(company.getId(), externalId);
+
+                if (existing.isPresent()) {
+                    ProductItem item = existing.get();
+                    if (!isMeaningless(category)) item.addCategory(category);
+
+                    if (item.hasDifferentContent(productName, price, description)) {
+                        item.update(productName, price, description, uploader);
+                        updated++;
+                    } else {
+                        skipped++;
+                    }
+                } else {
+                    ProductItem item = ProductItem.createFromFile(
+                            company, sourceFile, uploader, externalId, productName, price, description);
+                    if (!isMeaningless(category)) item.addCategory(category);
+                    productItemRepository.save(item);
+                    created++;
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("CSV 파싱 중 오류가 발생했습니다.", e);
+        }
+
+        return new IncrementalUploadResultDto(created, updated, skipped);
+    }
+
+    private String readColumn(CSVRecord record, String columnName) {
+        if (columnName == null || !record.isMapped(columnName)) return null;
+        return record.get(columnName);
     }
 }
