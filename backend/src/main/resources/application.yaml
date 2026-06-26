@@ -24,3 +24,7 @@ server:
 logging:
   level:
     com.widgetrag: DEBUG
+
+opensearch:
+  host: localhost
+  port: 9200

@@ -13,6 +13,7 @@ import com.widgetrag.backend.product.entity.ProductItem;
 import com.widgetrag.backend.product.exception.ProductAccessDeniedException;
 import com.widgetrag.backend.product.exception.ProductItemNotFoundException;
 import com.widgetrag.backend.product.repository.ProductItemRepository;
+import com.widgetrag.backend.search.service.OpenSearchIndexService;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVRecord;
@@ -41,6 +42,7 @@ public class ProductItemService {
     private final ProductItemRepository productItemRepository;
     private final MemberRepository memberRepository;
     private final CompanyRepository companyRepository;
+    private final OpenSearchIndexService openSearchIndexService; // 추가
 
     // CSV 업로드 시 호출 - 매핑 정보 기준으로 파싱, 같은 배치 내 중복 product_id도 안전하게 처리
     @Transactional
@@ -74,6 +76,7 @@ public class ProductItemService {
                             company, sourceFile, uploader, null, productName, price, description);
                     if (!isMeaningless(category)) item.addCategory(category);
                     productItemRepository.save(item);
+                    openSearchIndexService.indexProductItem(item); // 추가
                     created++;
                     continue;
                 }
@@ -94,11 +97,13 @@ public class ProductItemService {
                         } else {
                             skipped++;
                         }
+                        openSearchIndexService.indexProductItem(item); // 추가 - 카테고리만 추가돼도 색인 갱신 필요
                     } else {
                         item = ProductItem.createFromFile(
                                 company, sourceFile, uploader, externalId, productName, price, description);
                         if (!isMeaningless(category)) item.addCategory(category);
                         productItemRepository.save(item);
+                        openSearchIndexService.indexProductItem(item); // 추가
                         created++;
                     }
 
@@ -107,6 +112,7 @@ public class ProductItemService {
                 } else {
                     if (!isMeaningless(category)) {
                         item.addCategory(category);
+                        openSearchIndexService.indexProductItem(item); // 추가 - 카테고리 추가분 반영
                     }
                     skipped++;
                 }
@@ -159,6 +165,7 @@ public class ProductItemService {
             request.categories().forEach(item::addCategory);
         }
         productItemRepository.save(item);
+        openSearchIndexService.indexProductItem(item); // 추가
         return toDto(item);
     }
 
@@ -178,6 +185,7 @@ public class ProductItemService {
         if (request.categories() != null) {
             request.categories().forEach(item::addCategory);
         }
+        openSearchIndexService.indexProductItem(item); // 추가
         return toDto(item);
     }
 
@@ -194,6 +202,7 @@ public class ProductItemService {
                 .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
 
         item.markAsDeleted(member);
+        openSearchIndexService.deleteProductItem(item.getId()); // 추가
     }
 
     private ProductItemResponseDto toDto(ProductItem item) {
