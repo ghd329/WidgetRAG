@@ -11,4 +11,6 @@ public interface ProductItemRepository extends JpaRepository<ProductItem, Long> 
     List<ProductItem> findByCompanyIdAndDeletedAtIsNull(Long companyId);
 
     Optional<ProductItem> findByIdAndDeletedAtIsNull(Long id);
+
+    Optional<ProductItem> findByCompanyIdAndExternalProductIdAndDeletedAtIsNull(Long companyId, String externalProductId);
 }

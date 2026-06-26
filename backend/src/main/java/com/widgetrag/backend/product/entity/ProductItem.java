@@ -8,6 +8,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 @Entity
 @Table(name = "product_item")
@@ -26,7 +29,10 @@ public class ProductItem {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source_file_id")
-    private Product sourceFile; // CSV 업로드로 생성됐으면 채워짐, 화면에서 직접 추가했으면 null
+    private Product sourceFile;
+
+    @Column(name = "external_product_id", length = 50)
+    private String externalProductId;
 
     @Column(name = "product_name", length = 200, nullable = false)
     private String productName;
@@ -34,11 +40,11 @@ public class ProductItem {
     @Column(name = "price", nullable = false)
     private int price;
 
-    @Column(name = "category", length = 100)
-    private String category;
-
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
+
+    @OneToMany(mappedBy = "productItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProductItemCategory> categories = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
@@ -62,31 +68,52 @@ public class ProductItem {
     private LocalDateTime deletedAt;
 
     public static ProductItem createFromFile(Company company, Product sourceFile, Member createdBy,
-                                             String productName, int price, String category, String description) {
+                                             String externalProductId, String productName, int price,
+                                             String description) {
         ProductItem item = new ProductItem();
         item.company = company;
         item.sourceFile = sourceFile;
+        item.externalProductId = externalProductId;
         item.createdBy = createdBy;
         item.productName = productName;
         item.price = price;
-        item.category = category;
         item.description = description;
         item.createdAt = LocalDateTime.now();
         return item;
     }
 
     public static ProductItem createManually(Company company, Member createdBy,
-                                             String productName, int price, String category, String description) {
-        return createFromFile(company, null, createdBy, productName, price, category, description);
+                                             String productName, int price, String description) {
+        return createFromFile(company, null, createdBy, null, productName, price, description);
     }
 
-    public void update(String productName, int price, String category, String description, Member member) {
+    // 카테고리 추가 - 이미 있으면 무시 (중복 방지)
+    public void addCategory(String category) {
+        if (category == null || category.isBlank()) return;
+        boolean exists = this.categories.stream()
+                .anyMatch(c -> c.getCategory().equals(category));
+        if (!exists) {
+            this.categories.add(ProductItemCategory.create(this, category));
+        }
+    }
+
+    public List<String> getCategoryNames() {
+        return this.categories.stream().map(ProductItemCategory::getCategory).toList();
+    }
+
+    public void update(String productName, int price, String description, Member member) {
         this.productName = productName;
         this.price = price;
-        this.category = category;
         this.description = description;
         this.updatedBy = member;
         this.updatedAt = LocalDateTime.now();
+    }
+
+    // 카테고리는 비교 대상에서 제외 (별도로 addCategory를 통해 누적되니까)
+    public boolean hasDifferentContent(String productName, int price, String description) {
+        return !Objects.equals(this.productName, productName)
+                || this.price != price
+                || !Objects.equals(this.description, description);
     }
 
     public void markAsDeleted(Member member) {
