@@ -1,15 +1,20 @@
 package com.widgetrag.backend.search.service;
 
 import com.widgetrag.backend.product.entity.ProductItem;
+import com.widgetrag.backend.search.dto.SearchedProductDto;
 import lombok.RequiredArgsConstructor;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.mapping.Property;
 import org.opensearch.client.opensearch._types.mapping.TypeMapping;
+import org.opensearch.client.opensearch._types.query_dsl.Query;
+import org.opensearch.client.opensearch.core.SearchRequest;
+import org.opensearch.client.opensearch.core.SearchResponse;
 import org.opensearch.client.opensearch.indices.CreateIndexRequest;
 import org.opensearch.client.opensearch.indices.ExistsRequest;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -17,6 +22,7 @@ import java.util.Map;
 public class OpenSearchIndexService {
 
     private static final String INDEX_NAME = "product_items";
+    private static final int TOP_K = 3;
 
     private final OpenSearchClient client;
 
@@ -88,5 +94,52 @@ public class OpenSearchIndexService {
         String categories = String.join(", ", item.getCategoryNames());
         return String.format("상품명: %s │ 가격: %,d원 │ 카테고리: %s │ 설명: %s",
                 item.getProductName(), item.getPrice(), categories, item.getDescription());
+    }
+
+    public List<SearchedProductDto> search(String clientCode, String question) {
+        try {
+            Query clientCodeFilter = Query.of(q -> q
+                    .term(t -> t.field("client_code").value(v -> v.stringValue(clientCode)))
+            );
+
+            Query textMatch = Query.of(q -> q
+                    .match(m -> m
+                            .field("chunk_text")
+                            .query(v -> v.stringValue(question))
+                            .minimumShouldMatch("60%") // 질문 단어의 60% 이상 매칭돼야 함
+                    )
+            );
+
+            Query combined = Query.of(q -> q
+                    .bool(b -> b
+                            .filter(clientCodeFilter)
+                            .must(textMatch)
+                    )
+            );
+
+            SearchRequest request = SearchRequest.of(s -> s
+                    .index(INDEX_NAME)
+                    .query(combined)
+                    .size(TOP_K)
+                    .minScore(0.3) // 보조 안전망, 낮은 값
+            );
+
+            SearchResponse<Map> response = client.search(request, Map.class);
+
+            return response.hits().hits().stream()
+                    .map(hit -> {
+                        Map<String, Object> source = hit.source();
+                        return new SearchedProductDto(
+                                ((Number) source.get("product_item_id")).longValue(),
+                                (String) source.get("product_name"),
+                                ((Number) source.get("price")).intValue(),
+                                (List<String>) source.get("categories")
+                        );
+                    })
+                    .toList();
+
+        } catch (IOException e) {
+            throw new RuntimeException("OpenSearch 검색 중 오류가 발생했습니다.", e);
+        }
     }
 }
