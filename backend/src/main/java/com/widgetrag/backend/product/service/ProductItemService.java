@@ -26,7 +26,9 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -40,12 +42,16 @@ public class ProductItemService {
     private final MemberRepository memberRepository;
     private final CompanyRepository companyRepository;
 
+    // CSV 업로드 시 호출 - 매핑 정보 기준으로 파싱, 같은 배치 내 중복 product_id도 안전하게 처리
     @Transactional
-    public IncrementalUploadResultDto parseAndSaveFromCsv(Path csvPath, Company company, Product sourceFile, Member uploader) {
+    public IncrementalUploadResultDto parseAndSaveFromCsv(Path csvPath, Company company, Product sourceFile,
+                                                          Member uploader, CsvMappingDto mapping) {
 
         int created = 0;
         int updated = 0;
         int skipped = 0;
+
+        Map<String, ProductItem> processedInThisBatch = new HashMap<>();
 
         try (Reader reader = createBomAwareReader(csvPath)) {
             Iterable<CSVRecord> records = CSVFormat.DEFAULT.builder()
@@ -56,47 +62,53 @@ public class ProductItemService {
                     .parse(reader);
 
             for (CSVRecord record : records) {
-                String externalId = record.isMapped("product_id") ? record.get("product_id") : null;
-                String productName = record.get("product_name");
-                int price = Integer.parseInt(record.get("price").trim());
-                String category = resolveCategory(record);
-                String description = record.isMapped("description") ? record.get("description") : null;
+                String externalId = readColumn(record, mapping.productIdColumn());
+                String productName = readColumn(record, mapping.productNameColumn());
+                String priceRaw = readColumn(record, mapping.priceColumn());
+                int price = priceRaw == null ? 0 : Integer.parseInt(priceRaw.trim().replaceAll("[^0-9]", ""));
+                String category = readColumn(record, mapping.categoryColumn());
+                String description = readColumn(record, mapping.descriptionColumn());
 
                 if (externalId == null || externalId.isBlank()) {
                     ProductItem item = ProductItem.createFromFile(
                             company, sourceFile, uploader, null, productName, price, description);
-                    if (!isMeaningless(category)) {
-                        item.addCategory(category);
-                    }
+                    if (!isMeaningless(category)) item.addCategory(category);
                     productItemRepository.save(item);
                     created++;
                     continue;
                 }
 
-                Optional<ProductItem> existing = productItemRepository
-                        .findByCompanyIdAndExternalProductIdAndDeletedAtIsNull(company.getId(), externalId);
+                ProductItem item = processedInThisBatch.get(externalId);
 
-                if (existing.isPresent()) {
-                    ProductItem item = existing.get();
+                if (item == null) {
+                    Optional<ProductItem> existing = productItemRepository
+                            .findByCompanyIdAndExternalProductIdAndDeletedAtIsNull(company.getId(), externalId);
 
-                    if (!isMeaningless(category)) {
-                        item.addCategory(category); // 새 카테고리면 추가됨, 이미 있으면 무시
-                    }
+                    if (existing.isPresent()) {
+                        item = existing.get();
+                        if (!isMeaningless(category)) item.addCategory(category);
 
-                    if (item.hasDifferentContent(productName, price, description)) {
-                        item.update(productName, price, description, uploader);
-                        updated++;
+                        if (item.hasDifferentContent(productName, price, description)) {
+                            item.update(productName, price, description, uploader);
+                            updated++;
+                        } else {
+                            skipped++;
+                        }
                     } else {
-                        skipped++;
+                        item = ProductItem.createFromFile(
+                                company, sourceFile, uploader, externalId, productName, price, description);
+                        if (!isMeaningless(category)) item.addCategory(category);
+                        productItemRepository.save(item);
+                        created++;
                     }
+
+                    processedInThisBatch.put(externalId, item);
+
                 } else {
-                    ProductItem item = ProductItem.createFromFile(
-                            company, sourceFile, uploader, externalId, productName, price, description);
                     if (!isMeaningless(category)) {
                         item.addCategory(category);
                     }
-                    productItemRepository.save(item);
-                    created++;
+                    skipped++;
                 }
             }
         } catch (IOException e) {
@@ -104,6 +116,11 @@ public class ProductItemService {
         }
 
         return new IncrementalUploadResultDto(created, updated, skipped);
+    }
+
+    private String readColumn(CSVRecord record, String columnName) {
+        if (columnName == null || !record.isMapped(columnName)) return null;
+        return record.get(columnName);
     }
 
     private boolean isMeaningless(String category) {
@@ -119,13 +136,6 @@ public class ProductItemService {
         return new InputStreamReader(
                 new ByteArrayInputStream(bytes, offset, bytes.length - offset),
                 StandardCharsets.UTF_8);
-    }
-
-    private String resolveCategory(CSVRecord record) {
-        if (record.isMapped("category")) return record.get("category");
-        if (record.isMapped("category_leaf")) return record.get("category_leaf");
-        if (record.isMapped("category_main")) return record.get("category_main");
-        return null;
     }
 
     @Transactional(readOnly = true)
@@ -171,13 +181,6 @@ public class ProductItemService {
         return toDto(item);
     }
 
-    private ProductItemResponseDto toDto(ProductItem item) {
-        return new ProductItemResponseDto(
-                item.getId(), item.getProductName(), item.getPrice(),
-                item.getCategoryNames(), item.getDescription(), item.getCreatedAt(), item.getUpdatedAt()
-        );
-    }
-
     @Transactional
     public void delete(Long itemId, Long companyId, Long memberId) {
         ProductItem item = productItemRepository.findByIdAndDeletedAtIsNull(itemId)
@@ -193,69 +196,10 @@ public class ProductItemService {
         item.markAsDeleted(member);
     }
 
-    @Transactional
-    public IncrementalUploadResultDto parseAndSaveFromCsv(Path csvPath, Company company, Product sourceFile,
-                                                          Member uploader, CsvMappingDto mapping) {
-
-        int created = 0;
-        int updated = 0;
-        int skipped = 0;
-
-        try (Reader reader = createBomAwareReader(csvPath)) {
-            Iterable<CSVRecord> records = CSVFormat.DEFAULT.builder()
-                    .setHeader()
-                    .setSkipHeaderRecord(true)
-                    .setTrim(true)
-                    .build()
-                    .parse(reader);
-
-            for (CSVRecord record : records) {
-                String externalId = readColumn(record, mapping.productIdColumn());
-                String productName = readColumn(record, mapping.productNameColumn());
-                String priceRaw = readColumn(record, mapping.priceColumn());
-                int price = priceRaw == null ? 0 : Integer.parseInt(priceRaw.trim().replaceAll("[^0-9]", ""));
-                String category = readColumn(record, mapping.categoryColumn());
-                String description = readColumn(record, mapping.descriptionColumn());
-
-                if (externalId == null || externalId.isBlank()) {
-                    ProductItem item = ProductItem.createFromFile(
-                            company, sourceFile, uploader, null, productName, price, description);
-                    if (!isMeaningless(category)) item.addCategory(category);
-                    productItemRepository.save(item);
-                    created++;
-                    continue;
-                }
-
-                Optional<ProductItem> existing = productItemRepository
-                        .findByCompanyIdAndExternalProductIdAndDeletedAtIsNull(company.getId(), externalId);
-
-                if (existing.isPresent()) {
-                    ProductItem item = existing.get();
-                    if (!isMeaningless(category)) item.addCategory(category);
-
-                    if (item.hasDifferentContent(productName, price, description)) {
-                        item.update(productName, price, description, uploader);
-                        updated++;
-                    } else {
-                        skipped++;
-                    }
-                } else {
-                    ProductItem item = ProductItem.createFromFile(
-                            company, sourceFile, uploader, externalId, productName, price, description);
-                    if (!isMeaningless(category)) item.addCategory(category);
-                    productItemRepository.save(item);
-                    created++;
-                }
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("CSV 파싱 중 오류가 발생했습니다.", e);
-        }
-
-        return new IncrementalUploadResultDto(created, updated, skipped);
-    }
-
-    private String readColumn(CSVRecord record, String columnName) {
-        if (columnName == null || !record.isMapped(columnName)) return null;
-        return record.get(columnName);
+    private ProductItemResponseDto toDto(ProductItem item) {
+        return new ProductItemResponseDto(
+                item.getId(), item.getProductName(), item.getPrice(),
+                item.getCategoryNames(), item.getDescription(), item.getCreatedAt(), item.getUpdatedAt()
+        );
     }
 }
