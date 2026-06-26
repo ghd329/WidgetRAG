@@ -28,7 +28,7 @@ public class ChatController {
     )
     @PostMapping
     public ResponseEntity<ChatQueryResponseDto> chat(@RequestBody ChatQueryRequestDto request) {
-        ChatQueryResponseDto response = chatService.getMockAnswer(request);
+        ChatQueryResponseDto response = chatService.getAnswer(request); // 메서드명 변경
         return ResponseEntity.ok(response);
     }
 }
