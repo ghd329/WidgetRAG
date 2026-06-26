@@ -5,6 +5,7 @@ import com.widgetrag.backend.company.repository.CompanyRepository;
 import com.widgetrag.backend.config.StorageProperties;
 import com.widgetrag.backend.member.entity.Member;
 import com.widgetrag.backend.member.repository.MemberRepository;
+import com.widgetrag.backend.product.dto.IncrementalUploadResultDto;
 import com.widgetrag.backend.product.dto.ProductListItemDto;
 import com.widgetrag.backend.product.dto.UploadResponseDto;
 import com.widgetrag.backend.product.entity.Product;
@@ -27,7 +28,7 @@ import java.util.Set;
 public class FileStorageService {
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("txt", "csv");
-    private static final long MAX_FILE_SIZE = 50L * 1024 * 1024; // 50MB
+    private static final long MAX_FILE_SIZE = 50L * 1024 * 1024;
 
     private final ProductRepository productRepository;
     private final CompanyRepository companyRepository;
@@ -35,45 +36,40 @@ public class FileStorageService {
     private final StorageProperties storageProperties;
     private final ProductItemService productItemService;
 
+    // ===== 옛 버전 upload는 완전히 삭제됨 =====
+
     @Transactional
     public UploadResponseDto upload(MultipartFile file, Long companyId, Long memberId) {
 
-        // 1. 형식 검증
         String originalFilename = file.getOriginalFilename();
         String extension = extractExtension(originalFilename);
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
             throw new InvalidFileFormatException(originalFilename);
         }
-
-        // 2. 용량 검증
         if (file.getSize() > MAX_FILE_SIZE) {
             throw new FileSizeExceededException(file.getSize(), MAX_FILE_SIZE);
         }
 
-        // 3. 연관 엔티티 조회
         Company company = companyRepository.findById(companyId)
                 .orElseThrow(() -> new IllegalStateException("회사 정보를 찾을 수 없습니다."));
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
 
-        // 4. 메타데이터 우선 저장 (file_id 확보 목적)
         Product product = Product.create(company, member, originalFilename, extension, "");
         productRepository.save(product);
 
-        // 5. WSL 격리 경로에 실제 파일 저장
         String storagePath = buildStoragePath(company.getClientCode(), product.getFileId(), originalFilename);
         saveToFileSystem(file, storagePath);
+        product.updateStoragePath(storagePath);
 
-        // 6. 저장 경로 업데이트
+        IncrementalUploadResultDto itemResult = null;
         if ("csv".equalsIgnoreCase(extension)) {
-            productItemService.parseAndSaveFromCsv(Paths.get(storagePath), company, product, member);
+            itemResult = productItemService.parseAndSaveFromCsv(Paths.get(storagePath), company, product, member);
         }
 
         return new UploadResponseDto(
-                product.getFileId(),
-                product.getFileName(),
-                product.getFileType(),
-                product.getStatus()
+                product.getFileId(), product.getFileName(), product.getFileType(),
+                product.getStatus(), itemResult
         );
     }
 
@@ -92,7 +88,7 @@ public class FileStorageService {
     private void saveToFileSystem(MultipartFile file, String storagePath) {
         try {
             Path path = Paths.get(storagePath);
-            Files.createDirectories(path.getParent()); // client_code 폴더 없으면 생성
+            Files.createDirectories(path.getParent());
             file.transferTo(path);
         } catch (IOException e) {
             throw new FileStorageException("파일 저장 중 오류가 발생했습니다.", e);
@@ -110,6 +106,7 @@ public class FileStorageService {
                 .toList();
     }
 
+    // ===== update 메서드 복구 (이전 작업에서 빠짐) =====
     @Transactional
     public UploadResponseDto update(Long fileId, MultipartFile file, Long companyId, Long memberId) {
 
@@ -132,14 +129,16 @@ public class FileStorageService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
 
-        // 기존 파일 물리 삭제 후 새 파일 저장 (같은 file_id 경로 재사용)
         deletePhysicalFile(product.getStoragePath());
         String newStoragePath = buildStoragePath(product.getCompany().getClientCode(), product.getFileId(), originalFilename);
         saveToFileSystem(file, newStoragePath);
 
         product.updateContent(originalFilename, extension, newStoragePath, member);
 
-        return new UploadResponseDto(product.getFileId(), product.getFileName(), product.getFileType(), product.getStatus());
+        return new UploadResponseDto(
+                product.getFileId(), product.getFileName(), product.getFileType(),
+                product.getStatus(), null
+        );
     }
 
     @Transactional
@@ -155,8 +154,8 @@ public class FileStorageService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
 
-        deletePhysicalFile(product.getStoragePath()); // WSL 실제 파일 즉시 삭제
-        product.markAsDeleted(member); // DB는 soft delete
+        deletePhysicalFile(product.getStoragePath());
+        product.markAsDeleted(member);
     }
 
     private void deletePhysicalFile(String storagePath) {
