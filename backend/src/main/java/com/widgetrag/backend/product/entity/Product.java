@@ -92,4 +92,11 @@ public class Product {
     public void updateStoragePath(String storagePath) {
         this.storagePath = storagePath;
     }
+
+    public void updateContent(String fileName, String fileType, String storagePath, Member member) {
+        this.fileName = fileName;
+        this.fileType = fileType;
+        this.storagePath = storagePath;
+        markAsUpdated(member);
+    }
 }

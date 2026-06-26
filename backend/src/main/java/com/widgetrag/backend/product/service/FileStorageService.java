@@ -5,11 +5,10 @@ import com.widgetrag.backend.company.repository.CompanyRepository;
 import com.widgetrag.backend.config.StorageProperties;
 import com.widgetrag.backend.member.entity.Member;
 import com.widgetrag.backend.member.repository.MemberRepository;
+import com.widgetrag.backend.product.dto.ProductListItemDto;
 import com.widgetrag.backend.product.dto.UploadResponseDto;
 import com.widgetrag.backend.product.entity.Product;
-import com.widgetrag.backend.product.exception.FileSizeExceededException;
-import com.widgetrag.backend.product.exception.FileStorageException;
-import com.widgetrag.backend.product.exception.InvalidFileFormatException;
+import com.widgetrag.backend.product.exception.*;
 import com.widgetrag.backend.product.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -34,6 +33,7 @@ public class FileStorageService {
     private final CompanyRepository companyRepository;
     private final MemberRepository memberRepository;
     private final StorageProperties storageProperties;
+    private final ProductItemService productItemService;
 
     @Transactional
     public UploadResponseDto upload(MultipartFile file, Long companyId, Long memberId) {
@@ -65,7 +65,9 @@ public class FileStorageService {
         saveToFileSystem(file, storagePath);
 
         // 6. 저장 경로 업데이트
-        product.updateStoragePath(storagePath);
+        if ("csv".equalsIgnoreCase(extension)) {
+            productItemService.parseAndSaveFromCsv(Paths.get(storagePath), company, product, member);
+        }
 
         return new UploadResponseDto(
                 product.getFileId(),
@@ -94,6 +96,74 @@ public class FileStorageService {
             file.transferTo(path);
         } catch (IOException e) {
             throw new FileStorageException("파일 저장 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductListItemDto> getProductList(Long companyId) {
+        return productRepository.findByCompanyIdAndDeletedAtIsNull(companyId)
+                .stream()
+                .map(p -> new ProductListItemDto(
+                        p.getFileId(), p.getFileName(), p.getFileType(),
+                        p.getStatus(), p.getUploadedAt(), p.getUpdatedAt()
+                ))
+                .toList();
+    }
+
+    @Transactional
+    public UploadResponseDto update(Long fileId, MultipartFile file, Long companyId, Long memberId) {
+
+        Product product = productRepository.findById(fileId)
+                .orElseThrow(() -> new ProductNotFoundException(fileId));
+
+        if (!product.getCompany().getId().equals(companyId)) {
+            throw new ProductAccessDeniedException();
+        }
+
+        String originalFilename = file.getOriginalFilename();
+        String extension = extractExtension(originalFilename);
+        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+            throw new InvalidFileFormatException(originalFilename);
+        }
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new FileSizeExceededException(file.getSize(), MAX_FILE_SIZE);
+        }
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
+
+        // 기존 파일 물리 삭제 후 새 파일 저장 (같은 file_id 경로 재사용)
+        deletePhysicalFile(product.getStoragePath());
+        String newStoragePath = buildStoragePath(product.getCompany().getClientCode(), product.getFileId(), originalFilename);
+        saveToFileSystem(file, newStoragePath);
+
+        product.updateContent(originalFilename, extension, newStoragePath, member);
+
+        return new UploadResponseDto(product.getFileId(), product.getFileName(), product.getFileType(), product.getStatus());
+    }
+
+    @Transactional
+    public void delete(Long fileId, Long companyId, Long memberId) {
+
+        Product product = productRepository.findById(fileId)
+                .orElseThrow(() -> new ProductNotFoundException(fileId));
+
+        if (!product.getCompany().getId().equals(companyId)) {
+            throw new ProductAccessDeniedException();
+        }
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
+
+        deletePhysicalFile(product.getStoragePath()); // WSL 실제 파일 즉시 삭제
+        product.markAsDeleted(member); // DB는 soft delete
+    }
+
+    private void deletePhysicalFile(String storagePath) {
+        try {
+            Files.deleteIfExists(Paths.get(storagePath));
+        } catch (IOException e) {
+            throw new FileStorageException("파일 삭제 중 오류가 발생했습니다.", e);
         }
     }
 }

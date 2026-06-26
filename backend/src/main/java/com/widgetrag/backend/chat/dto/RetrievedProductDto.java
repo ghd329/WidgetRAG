@@ -1,4 +1,7 @@
 package com.widgetrag.backend.chat.dto;
 
-public class RetrievedProductDto {
-}
+public record RetrievedProductDto(
+        String productName,
+        int price,
+        String category
+) {}

@@ -24,7 +24,8 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/members/signup", "/api/members/join", "/api/members/login").permitAll()
-                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll() // 추가
+                        .requestMatchers("/api/chat").permitAll() // 추가 - 외부 쇼핑몰 방문객용, 인증 불필요
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                         .anyRequest().permitAll()
                 );
 

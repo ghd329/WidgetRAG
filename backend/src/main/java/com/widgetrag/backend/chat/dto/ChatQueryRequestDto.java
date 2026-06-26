@@ -1,4 +1,6 @@
 package com.widgetrag.backend.chat.dto;
 
-public class ChatQueryRequestDto {
-}
+public record ChatQueryRequestDto(
+        String clientCode,
+        String question
+) {}
