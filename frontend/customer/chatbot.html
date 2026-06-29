@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>고객 챗봇</title>
+
+    <link rel="stylesheet" href="../assets/css/common.css">
+    <link rel="stylesheet" href="../assets/css/customer.css">
+
+    <script src="../assets/js/customer.js"></script>
+</head>
+
+<body class="customer-body">
+    <div class="chat-wrap">
+
+        <div class="chat-header">
+            <div class="header-left">
+                <div class="bot-icon">🤖</div>
+
+                <div>
+                    <h1>AI 쇼핑 도우미</h1>
+                    <p>이 쇼핑몰의 상품 데이터를 기반으로 답변해드려요.</p>
+                </div>
+            </div>
+
+            <a class="history-btn" href="history.html">
+                대화기록
+            </a>
+        </div>
+
+        <div class="chat-box" id="chatBox">
+
+            <div class="date-chip">오늘</div>
+
+            <div class="chat-row bot-row">
+                <div class="avatar">🤖</div>
+
+                <div>
+                    <div class="message bot">
+                        안녕하세요! 👋<br>
+                        저는 이 쇼핑몰의 상품 정보를 기반으로 답변하는 AI 쇼핑 도우미입니다.<br>
+                        원하는 상황이나 조건을 말해주시면 상품을 추천해드릴게요.
+                    </div>
+
+                    <div class="message-time">방금 전</div>
+                </div>
+            </div>
+
+            <div class="recommend-box">
+                <div class="recommend-title">이렇게 질문해볼 수 있어요</div>
+
+                <div class="quick-menu">
+                    <div class="quick-card" onclick="quickQuestion('지금 날씨에 맞는 상품 추천해줘')">
+                        <div class="quick-icon">🌤️</div>
+                        <div>
+                            <h4>상황 맞춤 추천</h4>
+                            <span>날씨, 장소, 목적에 맞는 상품 추천</span>
+                        </div>
+                    </div>
+
+                    <div class="quick-card" onclick="quickQuestion('3만원 이하로 살 수 있는 상품 추천해줘')">
+                        <div class="quick-icon">💰</div>
+                        <div>
+                            <h4>예산별 추천</h4>
+                            <span>원하는 가격대에 맞는 상품 추천</span>
+                        </div>
+                    </div>
+
+                    <div class="quick-card" onclick="quickQuestion('친구 생일 선물로 좋은 상품 추천해줘')">
+                        <div class="quick-icon">🎁</div>
+                        <div>
+                            <h4>선물 추천</h4>
+                            <span>상대와 상황에 맞는 선물 추천</span>
+                        </div>
+                    </div>
+
+                    <div class="quick-card" onclick="quickQuestion('인기 있는 상품 추천해줘')">
+                        <div class="quick-icon">🔥</div>
+                        <div>
+                            <h4>인기 상품</h4>
+                            <span>많이 찾는 상품 중심 추천</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sample-answer">
+                <div class="sample-title">답변 예시</div>
+
+                <div class="product-preview">
+                    <div class="product-card">
+                        <div class="product-img">🛍️</div>
+
+                        <div>
+                            <strong>추천 상품명</strong>
+                            <p>고객님의 질문 조건에 맞는 상품을 추천해드립니다.</p>
+                            <span>추천 이유: 상품 설명, 가격, 카테고리, 상황 조건 기반</span>
+                        </div>
+                    </div>
+
+                    <div class="product-card">
+                        <div class="product-img">🔎</div>
+
+                        <div>
+                            <strong>RAG 검색 기반 답변</strong>
+                            <p>업로드된 상품 데이터에서 관련 정보를 검색한 뒤 답변합니다.</p>
+                            <span>OpenSearch 검색 결과 기반으로 응답 생성 예정</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="chat-input">
+            <input
+                id="messageInput"
+                type="text"
+                placeholder="예: 친구 생일 선물로 좋은 상품 추천해줘"
+                onkeydown="if(event.key==='Enter') sendMessage()"
+            >
+
+            <button class="primary-btn send-btn" onclick="sendMessage()">
+                ➤
+            </button>
+        </div>
+
+        <p class="chat-notice">
+            AI 추천 답변은 해당 기업이 등록한 상품 데이터와 RAG 검색 결과를 기반으로 생성됩니다.
+        </p>
+
+    </div>
+
+    <script>
+        function quickQuestion(text) {
+            document.getElementById("messageInput").value = text;
+            sendMessage();
+        }
+    </script>
+</body>
+</html>

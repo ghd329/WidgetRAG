@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>기업 회원가입</title>
+
+  <link rel="stylesheet" href="../assets/css/common.css">
+  <script src="../assets/js/auth.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      font-family: "Pretendard", sans-serif;
+      background: #eef4ff;
+    }
+
+    .signup-left {
+      width: 45%;
+      background: linear-gradient(160deg, #2563eb, #3b82f6);
+      color: white;
+      padding: 80px 65px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .signup-left::before {
+      content: "";
+      position: absolute;
+      width: 360px;
+      height: 360px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.08);
+      top: -100px;
+      right: -80px;
+    }
+
+    .signup-left::after {
+      content: "";
+      position: absolute;
+      width: 260px;
+      height: 260px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.08);
+      bottom: -100px;
+      left: -90px;
+    }
+
+    .label {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      margin-bottom: 28px;
+      opacity: .9;
+    }
+
+    .signup-left h1 {
+      font-size: 44px;
+      line-height: 1.35;
+      margin-bottom: 28px;
+      z-index: 1;
+    }
+
+    .signup-left p {
+      font-size: 18px;
+      margin-bottom: 48px;
+      opacity: .95;
+      z-index: 1;
+    }
+
+    .feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      z-index: 1;
+    }
+
+    .feature {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .feature-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .signup-right {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+
+    .signup-card {
+      width: 470px;
+      background: white;
+      padding: 55px 52px;
+      border-radius: 26px;
+      box-shadow: 0 18px 45px rgba(37, 99, 235, .16);
+    }
+
+    .signup-card h2 {
+      font-size: 34px;
+      color: #111827;
+      margin-bottom: 36px;
+    }
+
+    .input-box {
+      position: relative;
+      margin-bottom: 18px;
+    }
+
+    .input-box span {
+      position: absolute;
+      left: 17px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #6b7280;
+      font-size: 18px;
+    }
+
+    .input-box input {
+      width: 100%;
+      height: 58px;
+      padding: 0 18px 0 52px;
+      border: 1px solid #d6e0f2;
+      border-radius: 14px;
+      font-size: 15px;
+      outline: none;
+    }
+
+    .input-box input:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+    }
+
+    .signup-btn {
+      width: 100%;
+      height: 58px;
+      margin-top: 8px;
+      border: none;
+      border-radius: 14px;
+      background: #2563eb;
+      color: white;
+      font-size: 17px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .signup-btn:hover {
+      background: #1d4ed8;
+    }
+
+    .login-link {
+      text-align: center;
+      margin-top: 26px;
+      color: #333;
+      font-size: 15px;
+    }
+
+    .login-link a {
+      color: #2563eb;
+      font-weight: 800;
+      text-decoration: none;
+      margin-left: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <section class="signup-left">
+    <div class="label">AI CHATBOT</div>
+
+    <h1>RAG 기반 쇼핑몰<br>AI 추천 시스템</h1>
+
+    <p>기업 전용 AI 챗봇 플랫폼</p>
+
+    <div class="feature-list">
+      <div class="feature">
+        <div class="feature-icon">☁️</div>
+        <span>상품 업로드</span>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">🗄️</div>
+        <span>벡터 DB 생성</span>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">🤖</div>
+        <span>AI 추천</span>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">⌨️</div>
+        <span>스크립트 발급</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="signup-right">
+    <div class="signup-card">
+      <h2>기업 회원가입</h2>
+
+      <div class="input-box">
+        <span>🏢</span>
+        <input type="text" id="companyName" placeholder="기업명">
+      </div>
+
+      <!-- <div class="input-box">
+        <span>👤</span>
+        <input type="text" id="managerName" placeholder="담당자명">
+      </div> -->
+
+      <div class="input-box">
+        <span>✉️</span>
+        <input
+            type="email"
+            id="email"
+            placeholder="이메일"
+            autocomplete="email"
+            required
+            pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+            title="올바른 이메일 형식으로 입력해주세요. (example@email.com)">
+     </div>
+
+      <div class="input-box">
+        <span>🔒</span>
+        <input
+            type="password"
+            id="password"
+            placeholder="비밀번호"
+            minlength="8"
+            required
+            title="영문, 숫자, 특수문자를 포함한 8자 이상으로 입력해주세요.">
+     </div>
+
+      <div class="input-box">
+        <span>🔒</span>
+        <input
+            type="password"
+            id="passwordCheck"
+            placeholder="비밀번호 확인"
+            minlength="8"
+            required>
+      </div>
+
+      <button class="signup-btn" onclick="signupCompany()">
+        회원가입
+      </button>
+
+      <div class="login-link">
+        이미 계정이 있으신가요?
+        <a href="company-login.html">로그인</a>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const BACKEND_BASE = "http://localhost:8080";
+
+    async function signupCompany() {
+      const companyName = document.getElementById("companyName").value.trim();
+      // const managerName = document.getElementById("managerName").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value.trim();
+      const passwordCheck = document.getElementById("passwordCheck").value.trim();
+
+      if (!companyName) {
+        alert("기업명을 입력해주세요.");
+        return;
+      }
+
+      // if (!managerName) {
+      //   alert("담당자명을 입력해주세요.");
+      //   return;
+      // }
+
+      if (!email) {
+        alert("이메일을 입력해주세요.");
+        return;
+      }
+
+      if (!password) {
+        alert("비밀번호를 입력해주세요.");
+        return;
+      }
+
+      if (password !== passwordCheck) {
+        alert("비밀번호가 일치하지 않습니다.");
+        return;
+      }
+
+      try {
+        const response = await fetch(`${BACKEND_BASE}/api/members/signup`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            companyName: companyName,
+            email: email,
+            password: password
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText);
+        }
+
+        const result = await response.json();
+        console.log("회원가입 성공:", result);
+
+        alert("회원가입이 완료되었습니다. 로그인 페이지로 이동합니다.");
+        location.href = "company-login.html";
+
+      } catch (error) {
+        console.error(error);
+        alert("회원가입 중 오류가 발생했습니다.");
+      }
+    }
+  </script>
+
+</body>
+</html>
