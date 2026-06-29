@@ -28,3 +28,6 @@ logging:
 opensearch:
   host: localhost
   port: 9200
+
+ai-server:
+  base-url: http://localhost:8000
