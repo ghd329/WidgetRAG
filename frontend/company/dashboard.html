@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+
+    <link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+
+    <link rel="stylesheet" href="../assets/css/common.css">
+    <link rel="stylesheet" href="../assets/css/company.css">
+
+    <script src="../assets/js/auth.js"></script>
+    <script src="../assets/js/api.js"></script>
+    <script src="../assets/js/company.js"></script>
+</head>
+
+<body onload="initDashboardPage()">
+    <div class="company-layout">
+
+        <aside class="sidebar">
+            <h2>Biz Chatbot</h2>
+
+            <ul>
+                <li class="active" onclick="location.href='dashboard.html'">
+                    <i class="fa-solid fa-chart-line"></i>관리자 홈
+                </li>
+
+                <li onclick="location.href='upload.html'">
+                    <i class="fa-solid fa-file-arrow-up"></i>데이터 업로드
+                </li>
+
+                <li onclick="location.href='products.html'">
+                    <i class="fa-solid fa-box"></i>상품 관리
+                </li>
+
+                <li onclick="location.href='questions.html'">
+                    <i class="fa-solid fa-comments"></i>고객 질문 관리
+                </li>
+
+                <li onclick="location.href='answers.html'">
+                    <i class="fa-solid fa-brain"></i>AI 답변 관리
+                </li>
+
+                <li onclick="location.href='script.html'">
+                    <i class="fa-solid fa-code"></i>위젯 설치 코드
+                </li>
+
+                <li onclick="location.href='settings.html'">
+                    <i class="fa-solid fa-gear"></i>설정
+                </li>
+            </ul>
+        </aside>
+
+        <main class="main">
+            <div class="top">
+                <div>
+                    <h1>기업 관리자 홈</h1>
+                    <p>상품 데이터, 고객 질문, 챗봇 응답 현황을 관리하세요.</p>
+                </div>
+
+                <div class="user-box">
+                    <span>기업 관리자님</span>
+                    <button class="logout" onclick="logout()">로그아웃</button>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>등록 상품</h3>
+                    <span id="productCount">0개</span>
+                </div>
+
+                <div class="stat-card">
+                    <h3>고객 질문</h3>
+                    <span id="questionCount">0개</span>
+                </div>
+
+                <div class="stat-card">
+                    <h3>AI 답변</h3>
+                    <span id="answerCount">0개</span>
+                </div>
+
+                <div class="stat-card">
+                    <h3>챗봇 상태</h3>
+                    <span id="chatbotStatus">대기</span>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3 style="margin-bottom: 15px;">최근 고객 질문</h3>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>질문</th>
+                                <th>시간</th>
+                                <th>상태</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="recentQuestionBody">
+                            <tr>
+                                <td colspan="3" style="text-align:center; color:#777;">
+                                    아직 등록된 고객 질문이 없습니다.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <h3 style="margin-bottom: 15px;">최근 업로드 내역</h3>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>파일명</th>
+                                <th>형식</th>
+                                <th>상태</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="recentUploadBody">
+                            <tr>
+                                <td colspan="3" style="text-align:center; color:#777;">
+                                    아직 업로드된 파일이 없습니다.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <script>
+        const BACKEND_BASE = "http://127.0.0.1:8080";
+
+        async function initDashboardPage() {
+            initPage();
+            await loadDashboardData();
+        }
+
+        async function loadDashboardData() {
+            try {
+                const products = await fetchJson(`${BACKEND_BASE}/api/product-items`);
+                const uploads = await fetchJson(`${BACKEND_BASE}/api/products`);
+
+                const questions = JSON.parse(localStorage.getItem("customerQuestions")) || [];
+
+                document.getElementById("productCount").innerText = products.length + "개";
+                document.getElementById("questionCount").innerText = questions.length + "개";
+
+                const answeredCount = questions.filter(item => item.answer && item.answer.trim() !== "").length;
+                document.getElementById("answerCount").innerText = answeredCount + "개";
+
+                document.getElementById("chatbotStatus").innerText = products.length > 0 ? "정상" : "대기";
+
+                loadRecentQuestions(questions);
+                loadRecentUploads(uploads);
+
+            } catch (error) {
+                console.error(error);
+
+                document.getElementById("productCount").innerText = "0개";
+                document.getElementById("questionCount").innerText = "0개";
+                document.getElementById("answerCount").innerText = "0개";
+                document.getElementById("chatbotStatus").innerText = "대기";
+
+                loadRecentQuestions([]);
+                loadRecentUploads([]);
+
+                alert("대시보드 데이터를 불러오지 못했습니다. 로그인 상태 또는 백엔드 API를 확인해주세요.");
+            }
+        }
+
+        async function fetchJson(url) {
+            const response = await fetch(url, {
+                method: "GET",
+                credentials: "include"
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText);
+            }
+
+            return await response.json();
+        }
+
+        function loadRecentQuestions(questions) {
+            const recentQuestionBody = document.getElementById("recentQuestionBody");
+
+            recentQuestionBody.innerHTML = "";
+
+            if (!questions || questions.length === 0) {
+                recentQuestionBody.innerHTML = `
+                    <tr>
+                        <td colspan="3" style="text-align:center; color:#777;">
+                            아직 등록된 고객 질문이 없습니다.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            questions.slice(0, 5).forEach(item => {
+                const row = document.createElement("tr");
+
+                row.innerHTML = `
+                    <td>${item.question}</td>
+                    <td>${item.date}</td>
+                    <td>${item.status || "답변완료"}</td>
+                `;
+
+                recentQuestionBody.appendChild(row);
+            });
+        }
+
+        function loadRecentUploads(uploads) {
+            const recentUploadBody = document.getElementById("recentUploadBody");
+
+            recentUploadBody.innerHTML = "";
+
+            if (!uploads || uploads.length === 0) {
+                recentUploadBody.innerHTML = `
+                    <tr>
+                        <td colspan="3" style="text-align:center; color:#777;">
+                            아직 업로드된 파일이 없습니다.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            uploads.slice(0, 5).forEach(item => {
+                const fileName = item.fileName || item.originalFileName || item.name || "-";
+                const fileType = item.fileType || item.type || "-";
+                const status = item.status || "성공";
+
+                const row = document.createElement("tr");
+
+                row.innerHTML = `
+                    <td>${fileName}</td>
+                    <td>${fileType}</td>
+                    <td>${status}</td>
+                `;
+
+                recentUploadBody.appendChild(row);
+            });
+        }
+    </script>
+</body>
+</html>

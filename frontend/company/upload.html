@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+
+    <!-- CSV 파싱 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+    <link rel="stylesheet" href="../assets/css/common.css">
+    <link rel="stylesheet" href="../assets/css/company.css">
+
+    <script src="../assets/js/auth.js"></script>
+    <script src="../assets/js/api.js"></script>
+    <script src="../assets/js/company.js"></script>
+
+    <style>
+    .mapping-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+
+    .mapping-box {
+        width: 720px;
+        max-height: 90vh;
+        overflow-y: auto;
+        background: white;
+        border-radius: 14px;
+        padding: 28px;
+    }
+
+    .mapping-sub {
+        color: #666;
+        margin: 8px 0 20px;
+    }
+
+    .mapping-info {
+        background: #f8fafc;
+        padding: 14px;
+        border-radius: 10px;
+        color: #555;
+        margin-bottom: 20px;
+    }
+
+    .mapping-head {
+        display: grid;
+        grid-template-columns: 1fr 80px 1fr;
+        color: #777;
+        font-size: 14px;
+        margin-bottom: 8px;
+    }
+
+    .mapping-row {
+        display: grid;
+        grid-template-columns: 1fr 80px 1fr;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 8px;
+    }
+
+    .csv-col strong {
+        display: block;
+        margin-bottom: 4px;
+    }
+
+    .csv-col span {
+        color: #888;
+        font-size: 13px;
+    }
+
+    .arrow {
+        text-align: center;
+        color: #777;
+    }
+
+    .mapping-select {
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+    }
+
+    .save-default {
+        display: block;
+        margin-top: 16px;
+    }
+
+    .mapping-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 24px;
+    }
+
+    .cancel-btn {
+        padding: 12px 18px;
+        border: 1px solid #ddd;
+        background: white;
+        border-radius: 8px;
+    }
+    </style>
+</head>
+
+<body onload="initUploadPage()">
+    <div class="company-layout">
+
+        <aside class="sidebar">
+            <h2>Biz Chatbot</h2>
+
+            <ul>
+                <li onclick="location.href='dashboard.html'">
+                    <i class="fa-solid fa-chart-line"></i>관리자 홈
+                </li>
+
+                <li class="active" onclick="location.href='upload.html'">
+                    <i class="fa-solid fa-file-arrow-up"></i>데이터 업로드
+                </li>
+
+                <li onclick="location.href='products.html'">
+                    <i class="fa-solid fa-box"></i>상품 관리
+                </li>
+
+                <li onclick="location.href='questions.html'">
+                    <i class="fa-solid fa-comments"></i>고객 질문 관리
+                </li>
+
+                <li onclick="location.href='answers.html'">
+                    <i class="fa-solid fa-brain"></i>AI 답변 관리
+                </li>
+
+                <li onclick="location.href='script.html'">
+                    <i class="fa-solid fa-code"></i>위젯 설치 코드
+                </li>
+
+                <li onclick="location.href='settings.html'">
+                    <i class="fa-solid fa-gear"></i>설정
+                </li>
+            </ul>
+        </aside>
+
+        <main class="main">
+            <div class="top">
+                <div>
+                    <h1>데이터 업로드</h1>
+                    <p>CSV, TXT 파일을 업로드하여 상품 및 FAQ 데이터를 등록하세요.</p>
+                </div>
+
+                <div class="user-box">
+                    <span>기업 관리자님</span>
+                    <button class="logout" onclick="logout()">로그아웃</button>
+                </div>
+            </div>
+
+            <div class="card upload-box">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+
+                <h3>파일 업로드</h3>
+
+                <p>CSV 또는 TXT 파일만 업로드 가능합니다.</p>
+
+                <input type="file" id="fileInput" accept=".csv,.txt">
+
+                <br>
+
+                <button class="primary-btn" onclick="uploadFile()">
+                    업로드
+                </button>
+            </div>
+
+            <h2 class="section-title">업로드 이력</h2>
+
+            <div class="card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>파일명</th>
+                            <th>형식</th>
+                            <th>업로드 일시</th>
+                            <th>상태</th>
+                            <th>관리</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="uploadHistoryBody">
+                        <tr>
+                            <td colspan="5" style="text-align:center; color:#777;">
+                                아직 업로드된 파일이 없습니다.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+
+    </div>
+
+    <script>
+    const BACKEND_BASE = "http://127.0.0.1:8080";
+
+    let currentPreviewData = null;
+    let currentFile = null;
+
+    function initUploadPage() {
+        initPage();
+        loadUploadHistory();
+    }
+
+    async function uploadFile() {
+        const fileInput = document.getElementById("fileInput");
+        const file = fileInput.files[0];
+
+        if (!file) {
+            alert("파일을 선택해주세요.");
+            return;
+        }
+
+        currentFile = file;
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const previewRes = await fetch(`${BACKEND_BASE}/api/products/preview`, {
+                method: "POST",
+                credentials: "include",
+                body: formData
+            });
+
+            if (!previewRes.ok) {
+                throw new Error(await previewRes.text());
+            }
+
+            currentPreviewData = await previewRes.json();
+            console.log("previewData:", currentPreviewData);
+
+            showMappingModal(file.name, currentPreviewData);
+
+        } catch (error) {
+            console.error(error);
+            alert("미리보기 중 오류가 발생했습니다.\n" + error.message);
+        }
+    }
+
+    async function loadUploadHistory() {
+        const historyBody = document.getElementById("uploadHistoryBody");
+
+        historyBody.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align:center; color:#777;">
+                    업로드 이력을 불러오는 중입니다.
+                </td>
+            </tr>
+        `;
+
+        try {
+            const res = await fetch(`${BACKEND_BASE}/api/products`, {
+                method: "GET",
+                credentials: "include"
+            });
+
+            if (!res.ok) {
+                throw new Error(await res.text());
+            }
+
+            const history = await res.json();
+            historyBody.innerHTML = "";
+
+            if (!history || history.length === 0) {
+                historyBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#777;">
+                            아직 업로드된 파일이 없습니다.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            history.forEach(item => {
+                const row = document.createElement("tr");
+
+                row.innerHTML = `
+                    <td>${item.fileName || "-"}</td>
+                    <td>${item.fileType || "-"}</td>
+                    <td>${item.uploadedAt || "-"}</td>
+                    <td>${item.status || "-"}</td>
+                    <td>
+                        <button class="delete-btn" onclick="deleteUpload(${item.fileId})">
+                            삭제
+                        </button>
+                    </td>
+                `;
+
+                historyBody.appendChild(row);
+            });
+
+        } catch (error) {
+            console.error(error);
+
+            historyBody.innerHTML = `
+                <tr>
+                    <td colspan="5" style="text-align:center; color:#777;">
+                        업로드 이력을 불러오지 못했습니다.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    async function deleteUpload(fileId) {
+        if (!fileId) {
+            alert("삭제할 파일 ID를 찾지 못했습니다.");
+            return;
+        }
+
+        if (!confirm("이 업로드 파일과 연결된 상품 데이터를 함께 삭제하시겠습니까?")) return;
+
+        try {
+            const res = await fetch(`${BACKEND_BASE}/api/products/${fileId}`, {
+                method: "DELETE",
+                credentials: "include"
+            });
+
+            if (!res.ok) {
+                throw new Error(await res.text());
+            }
+
+            await loadUploadHistory();
+            alert("업로드 파일과 연결된 상품이 삭제되었습니다.");
+
+        } catch (error) {
+            console.error(error);
+            alert("삭제 중 오류가 발생했습니다.\n" + error.message);
+        }
+    }
+
+    function showMappingModal(fileName, previewData) {
+        const oldModal = document.getElementById("mappingModal");
+        if (oldModal) oldModal.remove();
+
+        const headers = previewData.headers || [];
+        const sampleRows = previewData.sampleRows || [];
+        const suggested = previewData.suggestedMapping || {};
+
+        let rowsHtml = "";
+
+        headers.forEach(header => {
+            const sample = sampleRows
+                .map(row => row[header])
+                .filter(v => v)
+                .slice(0, 2)
+                .join(", ");
+
+            rowsHtml += `
+                <div class="mapping-row">
+                    <div class="csv-col">
+                        <strong>${header}</strong>
+                        <span>예: ${sample || "-"}</span>
+                    </div>
+
+                    <div class="arrow">→</div>
+
+                    <select class="mapping-select" data-header="${header}">
+                        <option value="">매핑 안 함</option>
+                        <option value="productIdColumn">상품 ID</option>
+                        <option value="productNameColumn">상품명</option>
+                        <option value="priceColumn">가격</option>
+                        <option value="categoryColumn">카테고리</option>
+                        <option value="descriptionColumn">설명</option>
+                    </select>
+                </div>
+            `;
+        });
+
+        const modal = document.createElement("div");
+        modal.id = "mappingModal";
+        modal.innerHTML = `
+            <div class="mapping-backdrop">
+                <div class="mapping-box">
+                    <h2>상품 데이터 업로드</h2>
+                    <p class="mapping-sub">${fileName} · ${sampleRows.length}개 미리보기 행 감지됨</p>
+
+                    <div class="mapping-info">
+                        CSV의 각 열이 어떤 항목에 해당하는지 선택하세요.
+                        다음 업로드부터는 이 설정이 자동으로 적용됩니다.
+                    </div>
+
+                    <div class="mapping-head">
+                        <span>CSV 열</span>
+                        <span>매핑할 항목</span>
+                    </div>
+
+                    ${rowsHtml}
+
+                    <label class="save-default">
+                        <input type="checkbox" id="saveAsDefault" checked>
+                        이 매핑을 우리 상점의 기본값으로 저장
+                    </label>
+
+                    <div class="mapping-actions">
+                        <button class="cancel-btn" onclick="closeMappingModal()">취소</button>
+                        <button class="primary-btn" onclick="confirmMappedUpload()">매핑 확인하고 업로드</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        applySuggestedMapping(suggested);
+    }
+
+    function applySuggestedMapping(suggested) {
+        document.querySelectorAll(".mapping-select").forEach(select => {
+            const header = select.dataset.header;
+
+            if (suggested.productIdColumn === header) select.value = "productIdColumn";
+            if (suggested.productNameColumn === header) select.value = "productNameColumn";
+            if (suggested.priceColumn === header) select.value = "priceColumn";
+            if (suggested.categoryColumn === header) select.value = "categoryColumn";
+            if (suggested.descriptionColumn === header) select.value = "descriptionColumn";
+        });
+    }
+
+    function closeMappingModal() {
+        const modal = document.getElementById("mappingModal");
+        if (modal) modal.remove();
+    }
+
+    async function confirmMappedUpload() {
+        if (!currentPreviewData || !currentFile) {
+            alert("업로드 정보를 찾지 못했습니다.");
+            return;
+        }
+
+        const mapping = {
+            productIdColumn: null,
+            productNameColumn: null,
+            priceColumn: null,
+            categoryColumn: null,
+            descriptionColumn: null
+        };
+
+        document.querySelectorAll(".mapping-select").forEach(select => {
+            const target = select.value;
+            const header = select.dataset.header;
+
+            if (target) {
+                mapping[target] = header;
+            }
+        });
+
+        if (!mapping.productNameColumn) {
+            alert("상품명 컬럼은 반드시 선택해야 합니다.");
+            return;
+        }
+
+        const confirmBody = {
+            tempFileToken: currentPreviewData.tempFileToken,
+            originalFilename: currentFile.name,
+            mapping: mapping,
+            saveAsDefault: document.getElementById("saveAsDefault").checked
+        };
+
+        try {
+            const confirmRes = await fetch(`${BACKEND_BASE}/api/products/confirm`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                credentials: "include",
+                body: JSON.stringify(confirmBody)
+            });
+
+            if (!confirmRes.ok) {
+                throw new Error(await confirmRes.text());
+            }
+
+            const result = await confirmRes.json();
+            console.log("upload result:", result);
+
+            closeMappingModal();
+
+            document.getElementById("fileInput").value = "";
+            await loadUploadHistory();
+
+            alert("업로드 완료!");
+
+        } catch (error) {
+            console.error(error);
+            alert("업로드 확정 실패\n" + error.message);
+        }
+    }
+    </script>
+</body>
+</html>

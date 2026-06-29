@@ -47,7 +47,7 @@ public class ProductItemService {
     // CSV 업로드 시 호출 - 매핑 정보 기준으로 파싱, 같은 배치 내 중복 product_id도 안전하게 처리
     @Transactional
     public IncrementalUploadResultDto parseAndSaveFromCsv(Path csvPath, Company company, Product sourceFile,
-                                                          Member uploader, CsvMappingDto mapping) {
+                                                        Member uploader, CsvMappingDto mapping) {
 
         int created = 0;
         int updated = 0;
@@ -65,18 +65,36 @@ public class ProductItemService {
 
             for (CSVRecord record : records) {
                 String externalId = readColumn(record, mapping.productIdColumn());
+
                 String productName = readColumn(record, mapping.productNameColumn());
+                if (productName == null || productName.isBlank()) {
+                    productName = readColumn(record, "product_name");
+                }
+
                 String priceRaw = readColumn(record, mapping.priceColumn());
-                int price = priceRaw == null ? 0 : Integer.parseInt(priceRaw.trim().replaceAll("[^0-9]", ""));
+                if (priceRaw == null || priceRaw.isBlank()) {
+                    priceRaw = readColumn(record, "price");
+                }
+
+                String priceText = priceRaw == null ? "" : priceRaw.trim().replaceAll("[^0-9]", "");
+                int price = priceText.isBlank() ? 0 : Integer.parseInt(priceText);
+
                 String category = readColumn(record, mapping.categoryColumn());
+                if (category == null || category.isBlank()) {
+                    category = readColumn(record, "category_main");
+                }
+
                 String description = readColumn(record, mapping.descriptionColumn());
+                if (description == null || description.isBlank()) {
+                    description = readColumn(record, "description");
+                }
 
                 if (externalId == null || externalId.isBlank()) {
                     ProductItem item = ProductItem.createFromFile(
                             company, sourceFile, uploader, null, productName, price, description);
                     if (!isMeaningless(category)) item.addCategory(category);
                     productItemRepository.save(item);
-                    openSearchIndexService.indexProductItem(item); // 추가
+                    openSearchIndexService.indexProductItem(item);
                     created++;
                     continue;
                 }
@@ -97,13 +115,14 @@ public class ProductItemService {
                         } else {
                             skipped++;
                         }
-                        openSearchIndexService.indexProductItem(item); // 추가 - 카테고리만 추가돼도 색인 갱신 필요
+
+                        openSearchIndexService.indexProductItem(item);
                     } else {
                         item = ProductItem.createFromFile(
                                 company, sourceFile, uploader, externalId, productName, price, description);
                         if (!isMeaningless(category)) item.addCategory(category);
                         productItemRepository.save(item);
-                        openSearchIndexService.indexProductItem(item); // 추가
+                        openSearchIndexService.indexProductItem(item);
                         created++;
                     }
 
@@ -112,7 +131,7 @@ public class ProductItemService {
                 } else {
                     if (!isMeaningless(category)) {
                         item.addCategory(category);
-                        openSearchIndexService.indexProductItem(item); // 추가 - 카테고리 추가분 반영
+                        openSearchIndexService.indexProductItem(item);
                     }
                     skipped++;
                 }
@@ -125,8 +144,23 @@ public class ProductItemService {
     }
 
     private String readColumn(CSVRecord record, String columnName) {
-        if (columnName == null || !record.isMapped(columnName)) return null;
-        return record.get(columnName);
+        if (columnName == null || columnName.isBlank()) return null;
+
+        if (record.isMapped(columnName)) {
+            return record.get(columnName);
+        }
+
+        String lowerColumnName = columnName.toLowerCase();
+
+        for (String header : record.toMap().keySet()) {
+            if (header == null) continue;
+
+            if (header.trim().equalsIgnoreCase(lowerColumnName)) {
+                return record.get(header);
+            }
+        }
+
+        return null;
     }
 
     private boolean isMeaningless(String category) {
@@ -210,5 +244,15 @@ public class ProductItemService {
                 item.getId(), item.getProductName(), item.getPrice(),
                 item.getCategoryNames(), item.getDescription(), item.getCreatedAt(), item.getUpdatedAt()
         );
+    }
+
+    @Transactional
+    public void deleteBySourceFile(Product sourceFile, Member member) {
+        List<ProductItem> items = productItemRepository.findBySourceFileFileIdAndDeletedAtIsNull(sourceFile.getFileId());
+
+        for (ProductItem item : items) {
+            item.markAsDeleted(member);
+            openSearchIndexService.deleteProductItem(item.getId());
+        }
     }
 }

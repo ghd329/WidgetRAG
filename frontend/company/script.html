@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Script</title>
+    <script src="https://kit.fontawesome.com/8f3f0f6f0f.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="../assets/css/common.css">
+    <link rel="stylesheet" href="../assets/css/company.css">
+    <script src="../assets/js/auth.js"></script>
+    <script src="../assets/js/api.js"></script>
+    <script src="../assets/js/company.js"></script>
+</head>
+<body onload="initPage()">
+    <div class="company-layout">
+        
+        <aside class="sidebar">
+            <h2>Biz Chatbot</h2>
+            <ul>
+                <li onclick="location.href='dashboard.html'">
+                    <i class="fa-solid fa-chart-line"></i>관리자 홈
+                </li>
+                <li onclick="location.href='upload.html'">
+                    <i class="fa-solid fa-file-arrow-up"></i>데이터 업로드
+                </li>
+                <li onclick="location.href='products.html'">
+                    <i class="fa-solid fa-box"></i>상품 관리
+                </li>
+                <li onclick="location.href='questions.html'">
+                    <i class="fa-solid fa-comments"></i>고객 질문 관리
+                </li>
+                <li onclick="location.href='answers.html'">
+                    <i class="fa-solid fa-brain"></i>AI 답변 관리
+                </li>
+                <li class="active" onclick="location.href='script.html'">
+                    <i class="fa-solid fa-code"></i>위젯 설치 코드
+                </li>
+                <li onclick="location.href='settings.html'">
+                    <i class="fa-solid fa-gear"></i>설정
+                </li>
+            </ul>
+        </aside>
+
+        <main class="main">
+            <div class="top">
+                <div>
+                    <h1>위젯 설치 코드</h1>
+                    <p>외부 쇼핑몰에 챗봇을 연결할 때 사용하는 코드입니다.</p>
+                </div>
+                <div class="user-box">
+                    <span>기업 관리자님</span>
+                    <button class="logout" onclick="logout()">로그아웃</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom: 15px;">삽입 코드</h3>
+                
+                <textarea id="scriptCode" class="code-box" readonly>&lt;script src="https://your-domain.com/customer/chatbot.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  AIChatbot.init({ shopId: "SHOP_001" });
+&lt;/script&gt;</textarea>
+                
+                <button class="primary-btn" style="margin-top: 15px;" onclick="copyScript()">코드 복사</button>
+                
+                <div class="notice">
+                    프로젝트 설명용 화면입니다. 실제 고객은 별도 고객용 채팅 화면에서 질문만 입력할 수 있습니다.
+                </div>
+            </div>
+        </main>
+
+    </div>
+</body>
+</html>

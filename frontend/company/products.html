@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products</title>
+
+    <link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+
+    <link rel="stylesheet" href="../assets/css/common.css">
+    <link rel="stylesheet" href="../assets/css/company.css">
+
+    <script src="../assets/js/auth.js"></script>
+    <script src="../assets/js/api.js"></script>
+    <script src="../assets/js/company.js"></script>
+</head>
+
+<body onload="initProductsPage()">
+    <div class="company-layout">
+
+        <aside class="sidebar">
+            <h2>Biz Chatbot</h2>
+
+            <ul>
+                <li onclick="location.href='dashboard.html'">
+                    <i class="fa-solid fa-chart-line"></i>관리자 홈
+                </li>
+
+                <li onclick="location.href='upload.html'">
+                    <i class="fa-solid fa-file-arrow-up"></i>데이터 업로드
+                </li>
+
+                <li class="active" onclick="location.href='products.html'">
+                    <i class="fa-solid fa-box"></i>상품 관리
+                </li>
+
+                <li onclick="location.href='questions.html'">
+                    <i class="fa-solid fa-comments"></i>고객 질문 관리
+                </li>
+
+                <li onclick="location.href='answers.html'">
+                    <i class="fa-solid fa-brain"></i>AI 답변 관리
+                </li>
+
+                <li onclick="location.href='script.html'">
+                    <i class="fa-solid fa-code"></i>위젯 설치 코드
+                </li>
+
+                <li onclick="location.href='settings.html'">
+                    <i class="fa-solid fa-gear"></i>설정
+                </li>
+            </ul>
+        </aside>
+
+        <main class="main">
+            <div class="top">
+                <div>
+                    <h1>상품 관리</h1>
+                    <p>업로드된 상품 데이터를 확인하고 직접 상품을 추가할 수 있습니다.</p>
+                </div>
+
+                <div class="user-box">
+                    <span>기업 관리자님</span>
+                    <button class="logout" onclick="logout()">로그아웃</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom: 18px;">상품 추가</h3>
+
+                <div class="form-grid">
+                    <input id="productId" placeholder="상품 ID">
+                    <input id="productName" placeholder="상품명">
+                    <input id="productPrice" placeholder="가격">
+                    <input id="categoryMain" placeholder="대분류">
+                    <input id="categorySub" placeholder="소분류">
+                    <input id="productDesc" placeholder="상품 설명">
+                    <input id="productUrl" placeholder="상품 URL">
+                </div>
+
+                <button class="primary-btn" style="margin-top: 18px;" onclick="addProductManual()">
+                    상품 추가
+                </button>
+            </div>
+
+            <h2 class="section-title">상품 리스트</h2>
+
+            <div class="card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>상품 ID</th>
+                            <th>상품명</th>
+                            <th>가격</th>
+                            <th>대분류</th>
+                            <th>소분류</th>
+                            <th>설명</th>
+                            <th>URL</th>
+                            <th>관리</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="productListBody">
+                        <tr>
+                            <td colspan="8" style="text-align:center; color:#777;">
+                                등록된 상품이 없습니다. 데이터 업로드 화면에서 CSV 또는 TXT 파일을 업로드해주세요.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+
+    </div>
+
+    <script>
+        function initProductsPage() {
+            initPage();
+            loadProducts();
+        }
+
+        async function loadProducts() {
+        const productListBody = document.getElementById("productListBody");
+
+        productListBody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align:center; color:#777;">
+                    상품 목록을 불러오는 중입니다.
+                </td>
+            </tr>
+        `;
+
+        try {
+            const res = await fetch("http://127.0.0.1:8080/api/product-items", {
+                method: "GET",
+                credentials: "include"
+            });
+
+            if (!res.ok) {
+                throw new Error(await res.text());
+            }
+
+            const products = await res.json();
+            console.log("product items:", products);
+
+            productListBody.innerHTML = "";
+
+            if (!products || products.length === 0) {
+                productListBody.innerHTML = `
+                    <tr>
+                        <td colspan="8" style="text-align:center; color:#777;">
+                            등록된 상품이 없습니다. 데이터 업로드 화면에서 CSV 파일을 업로드해주세요.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            products.forEach(product => {
+                const row = document.createElement("tr");
+
+                const categories = product.categories || [];
+                const categoryMain = categories[0] || "-";
+                const categorySub = categories[1] || "-";
+
+                row.innerHTML = `
+                    <td>${product.externalProductId || product.id || "-"}</td>
+                    <td>${product.productName || "-"}</td>
+                    <td>${product.price ? Number(product.price).toLocaleString() : "-"}</td>
+                    <td>${categoryMain}</td>
+                    <td>${categorySub}</td>
+                    <td>${product.description || "-"}</td>
+                    <td>-</td>
+                    <td>
+                        <button class="delete" onclick="deleteProductItem(${product.id})">삭제</button>
+                    </td>
+                `;
+
+                productListBody.appendChild(row);
+            });
+
+        } catch (error) {
+            console.error(error);
+
+            productListBody.innerHTML = `
+                <tr>
+                    <td colspan="8" style="text-align:center; color:#777;">
+                        상품 목록을 불러오지 못했습니다.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    async function deleteProductItem(itemId) {
+        if (!confirm("이 상품을 삭제하시겠습니까?")) return;
+
+        try {
+            const res = await fetch(`http://127.0.0.1:8080/api/product-items/${itemId}`, {
+                method: "DELETE",
+                credentials: "include"
+            });
+
+            if (!res.ok) {
+                throw new Error(await res.text());
+            }
+
+            await loadProducts();
+            alert("상품이 삭제되었습니다.");
+
+        } catch (error) {
+            console.error(error);
+            alert("상품 삭제 중 오류가 발생했습니다.\n" + error.message);
+        }
+    }
+
+        function addProductManual() {
+            const product_id = document.getElementById("productId").value.trim();
+            const product_name = document.getElementById("productName").value.trim();
+            const price = document.getElementById("productPrice").value.trim();
+            const category_main = document.getElementById("categoryMain").value.trim();
+            const category_sub = document.getElementById("categorySub").value.trim();
+            const description = document.getElementById("productDesc").value.trim();
+            const url = document.getElementById("productUrl").value.trim();
+
+            if (!product_name || !price || !category_main) {
+                alert("상품명, 가격, 대분류는 필수 입력입니다.");
+                return;
+            }
+
+            const products = JSON.parse(localStorage.getItem("products")) || [];
+
+            products.push({
+                uploadId: "manual",
+                product_id: product_id || "manual-" + Date.now(),
+                product_name: product_name,
+                price: price,
+                category_main: category_main,
+                category_sub: category_sub || "-",
+                description: description || "-",
+                url: url || "#"
+            });
+
+            localStorage.setItem("products", JSON.stringify(products));
+
+            document.getElementById("productId").value = "";
+            document.getElementById("productName").value = "";
+            document.getElementById("productPrice").value = "";
+            document.getElementById("categoryMain").value = "";
+            document.getElementById("categorySub").value = "";
+            document.getElementById("productDesc").value = "";
+            document.getElementById("productUrl").value = "";
+
+            loadProducts();
+
+            alert("상품이 추가되었습니다.");
+        }
+
+        function deleteProduct(index) {
+            if (!confirm("이 상품을 삭제하시겠습니까?")) return;
+
+            const products = JSON.parse(localStorage.getItem("products")) || [];
+
+            products.splice(index, 1);
+
+            localStorage.setItem("products", JSON.stringify(products));
+
+            loadProducts();
+        }
+
+        function editProduct(index) {
+            const products = JSON.parse(localStorage.getItem("products")) || [];
+            const product = products[index];
+
+            const newId = prompt("상품 ID를 수정하세요.", product.product_id || "");
+            if (newId === null) return;
+
+            const newName = prompt("상품명을 수정하세요.", product.product_name || "");
+            if (newName === null) return;
+
+            const newPrice = prompt("가격을 수정하세요.", product.price || "");
+            if (newPrice === null) return;
+
+            const newCategoryMain = prompt("대분류를 수정하세요.", product.category_main || "");
+            if (newCategoryMain === null) return;
+
+            const newCategorySub = prompt("소분류를 수정하세요.", product.category_sub || "");
+            if (newCategorySub === null) return;
+
+            const newDesc = prompt("설명을 수정하세요.", product.description || "");
+            if (newDesc === null) return;
+
+            const newUrl = prompt("URL을 수정하세요.", product.url || "");
+            if (newUrl === null) return;
+
+            products[index] = {
+                uploadId: product.uploadId || "manual",
+                product_id: newId || "-",
+                product_name: newName || "-",
+                price: newPrice || "-",
+                category_main: newCategoryMain || "-",
+                category_sub: newCategorySub || "-",
+                description: newDesc || "-",
+                url: newUrl || "#"
+            };
+
+            localStorage.setItem("products", JSON.stringify(products));
+
+            loadProducts();
+
+            alert("상품이 수정되었습니다.");
+        }
+    </script>
+</body>
+</html>

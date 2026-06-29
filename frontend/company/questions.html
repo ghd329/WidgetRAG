@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Questions</title>
+
+    <script src="https://kit.fontawesome.com/8f3f0f6f0f.js" crossorigin="anonymous"></script>
+
+    <link rel="stylesheet" href="../assets/css/common.css">
+    <link rel="stylesheet" href="../assets/css/company.css">
+
+    <script src="../assets/js/auth.js"></script>
+    <script src="../assets/js/api.js"></script>
+    <script src="../assets/js/company.js"></script>
+</head>
+
+<body onload="initQuestionsPage()">
+    <div class="company-layout">
+
+        <aside class="sidebar">
+            <h2>Biz Chatbot</h2>
+
+            <ul>
+                <li onclick="location.href='dashboard.html'">
+                    <i class="fa-solid fa-chart-line"></i>관리자 홈
+                </li>
+
+                <li onclick="location.href='upload.html'">
+                    <i class="fa-solid fa-file-arrow-up"></i>데이터 업로드
+                </li>
+
+                <li onclick="location.href='products.html'">
+                    <i class="fa-solid fa-box"></i>상품 관리
+                </li>
+
+                <li class="active" onclick="location.href='questions.html'">
+                    <i class="fa-solid fa-comments"></i>고객 질문 관리
+                </li>
+
+                <li onclick="location.href='answers.html'">
+                    <i class="fa-solid fa-brain"></i>AI 답변 관리
+                </li>
+
+                <li onclick="location.href='script.html'">
+                    <i class="fa-solid fa-code"></i>위젯 설치 코드
+                </li>
+
+                <li onclick="location.href='settings.html'">
+                    <i class="fa-solid fa-gear"></i>설정
+                </li>
+            </ul>
+        </aside>
+
+        <main class="main">
+            <div class="top">
+                <div>
+                    <h1>고객 질문 관리</h1>
+                    <p>고객 챗봇에서 입력된 질문과 AI 답변을 확인합니다.</p>
+                </div>
+
+                <div class="user-box">
+                    <span>기업 관리자님</span>
+                    <button class="logout" onclick="logout()">로그아웃</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>질문</th>
+                            <th>AI 답변</th>
+                            <th>질문 시간</th>
+                            <th>상태</th>
+                            <th>관리</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="questionListBody">
+                        <tr>
+                            <td colspan="5" style="text-align:center; color:#777;">
+                                아직 등록된 고객 질문이 없습니다.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+
+    </div>
+
+    <script>
+        function initQuestionsPage() {
+            initPage();
+            loadCustomerQuestions();
+        }
+
+        function loadCustomerQuestions() {
+            const questionListBody = document.getElementById("questionListBody");
+            const questionList = JSON.parse(localStorage.getItem("customerQuestions")) || [];
+
+            questionListBody.innerHTML = "";
+
+            if (questionList.length === 0) {
+                questionListBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#777;">
+                            아직 등록된 고객 질문이 없습니다.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            questionList.forEach((item, index) => {
+                const row = document.createElement("tr");
+
+                row.innerHTML = `
+                    <td>${item.question}</td>
+                    <td>${item.answer}</td>
+                    <td>${item.date}</td>
+                    <td>${item.status}</td>
+                    <td>
+                        <button class="delete" onclick="deleteQuestion(${index})">
+                            삭제
+                        </button>
+                    </td>
+                `;
+
+                questionListBody.appendChild(row);
+            });
+        }
+
+        function deleteQuestion(index) {
+            if (!confirm("이 질문 내역을 삭제하시겠습니까?")) return;
+
+            const questionList = JSON.parse(localStorage.getItem("customerQuestions")) || [];
+
+            questionList.splice(index, 1);
+
+            localStorage.setItem("customerQuestions", JSON.stringify(questionList));
+
+            loadCustomerQuestions();
+        }
+    </script>
+</body>
+</html>

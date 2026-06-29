@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>기업 로그인</title>
+    <link rel="stylesheet" href="../assets/css/common.css">
+    <script src="../assets/js/auth.js"></script>
+    <style>
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #eef4ff
+        }
+        .login-card {
+            width: 420px;
+            background: #fff;
+            padding: 40px;
+            border-radius: 22px;
+            box-shadow: 0 12px 35px rgba(0, 0, 0, .1)
+        }
+        h1 {
+            margin-bottom: 10px;
+            color: #1e2b3c
+        }
+        .desc {
+            color: #777;
+            margin-bottom: 25px
+        }
+        input {
+            width: 100%;
+            padding: 14px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            margin-bottom: 14px
+        }
+        .login-card button {
+            width: 100%;
+            margin-top: 8px
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h1>기업 로그인</h1>
+        <p class="desc">쇼핑몰 AI 챗봇 관리자 페이지입니다.</p>
+        <input type="email" id="email" placeholder="이메일">
+        <input type="password" id="password" placeholder="비밀번호">
+        <button class="primary-btn" onclick="loginAsCompany()">로그인</button>
+        <div class="link">
+            아직 계정이 없으신가요?
+            <a href="company-signup.html">회원가입</a>
+        </div>
+    </div>
+    <script>
+        const BACKEND_BASE = "http://127.0.0.1:8080";
+
+        async function loginAsCompany() {
+            const email = document.getElementById("email").value.trim();
+            const password = document.getElementById("password").value.trim();
+
+            if (!email) {
+                alert("이메일을 입력해주세요.");
+                return;
+            }
+
+            if (!password) {
+                alert("비밀번호를 입력해주세요.");
+                return;
+            }
+
+            try {
+                const response = await fetch(`${BACKEND_BASE}/api/members/login`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    credentials: "include",
+                    body: JSON.stringify({
+                        email: email,
+                        password: password
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
+                }
+
+                const result = await response.json();
+                console.log("로그인 성공:", result);
+
+                localStorage.setItem("isLogin", "true");
+                localStorage.setItem("userType", "company");
+                localStorage.setItem("isCompanyLogin", "true");
+                localStorage.setItem("companyEmail", email);
+                localStorage.setItem("companyId", result.companyId);
+                localStorage.setItem("clientCode", result.clientCode);
+                localStorage.setItem("memberId", result.memberId);
+                localStorage.setItem("companyName", result.companyName);
+
+                alert("로그인되었습니다.");
+                location.href = "../company/dashboard.html";
+
+            } catch (error) {
+                console.error(error);
+                alert("로그인 실패\n" + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
