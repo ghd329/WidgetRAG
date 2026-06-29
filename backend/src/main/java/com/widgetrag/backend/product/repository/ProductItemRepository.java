@@ -1,6 +1,5 @@
 package com.widgetrag.backend.product.repository;
 
-import com.widgetrag.backend.product.entity.Product;
 import com.widgetrag.backend.product.entity.ProductItem;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -14,9 +13,4 @@ public interface ProductItemRepository extends JpaRepository<ProductItem, Long> 
     Optional<ProductItem> findByIdAndDeletedAtIsNull(Long id);
 
     Optional<ProductItem> findByCompanyIdAndExternalProductIdAndDeletedAtIsNull(Long companyId, String externalProductId);
-
-    List<ProductItem> findBySourceFileAndDeletedAtIsNull(Product sourceFile);
-
-    List<ProductItem> findBySourceFileFileIdAndDeletedAtIsNull(Long fileId);
-    
 }

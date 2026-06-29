@@ -42,3 +42,8 @@ backend/.vscode/
 # OS
 .DS_Store
 Thumbs.db
+
+# ===== AI Server (Python / FastAPI) =====
+ai-server/.venv/
+ai-server/__pycache__/
+ai-server/*.pyc
