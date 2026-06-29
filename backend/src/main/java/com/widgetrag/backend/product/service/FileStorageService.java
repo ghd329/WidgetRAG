@@ -10,12 +10,8 @@ import com.widgetrag.backend.product.dto.IncrementalUploadResultDto;
 import com.widgetrag.backend.product.dto.ProductListItemDto;
 import com.widgetrag.backend.product.dto.UploadResponseDto;
 import com.widgetrag.backend.product.entity.Product;
-import com.widgetrag.backend.product.entity.ProductItem;
 import com.widgetrag.backend.product.exception.*;
-import com.widgetrag.backend.product.repository.ProductItemRepository;
 import com.widgetrag.backend.product.repository.ProductRepository;
-import com.widgetrag.backend.search.service.OpenSearchIndexService;
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,8 +37,6 @@ public class FileStorageService {
     private final StorageProperties storageProperties;
     private final ProductItemService productItemService;
     private final CsvUploadService csvUploadService;
-    private final ProductItemRepository productItemRepository;
-    private final OpenSearchIndexService openSearchIndexService;
 
     private String extractExtension(String filename) {
         if (filename == null || !filename.contains(".")) {
@@ -68,7 +62,7 @@ public class FileStorageService {
 
     @Transactional(readOnly = true)
     public List<ProductListItemDto> getProductList(Long companyId) {
-        return productRepository.findByCompany_IdAndDeletedAtIsNull(companyId)
+        return productRepository.findByCompanyIdAndDeletedAtIsNull(companyId)
                 .stream()
                 .map(p -> new ProductListItemDto(
                         p.getFileId(), p.getFileName(), p.getFileType(),
@@ -114,8 +108,9 @@ public class FileStorageService {
 
     @Transactional
     public void delete(Long fileId, Long companyId, Long memberId) {
+
         Product product = productRepository.findById(fileId)
-                .orElseThrow(() -> new IllegalStateException("업로드 파일을 찾을 수 없습니다."));
+                .orElseThrow(() -> new ProductNotFoundException(fileId));
 
         if (!product.getCompany().getId().equals(companyId)) {
             throw new ProductAccessDeniedException();
@@ -124,16 +119,7 @@ public class FileStorageService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
 
-        List<ProductItem> items =
-            productItemRepository.findBySourceFileFileIdAndDeletedAtIsNull(fileId);
-
-        for (ProductItem item : items) {
-            item.markAsDeleted(member);
-            openSearchIndexService.deleteProductItem(item.getId());
-        }
-
         deletePhysicalFile(product.getStoragePath());
-
         product.markAsDeleted(member);
     }
 
@@ -155,10 +141,9 @@ public class FileStorageService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
 
-        String originalFilename = request.originalFilename();
+        String originalFilename = "uploaded.csv"; // 실제로는 preview 단계에서 원본 파일명도 같이 넘겨받는 게 좋음 (보완 필요)
         Product product = Product.create(company, member, originalFilename, "csv", "");
         productRepository.save(product);
-        
 
         String storagePath = buildStoragePath(company.getClientCode(), product.getFileId(), originalFilename);
         try {
