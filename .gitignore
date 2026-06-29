@@ -1,0 +1,4 @@
+.crow/
+__pycache__/
+*.pyc
+data/
