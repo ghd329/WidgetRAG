@@ -14,6 +14,7 @@ import org.opensearch.client.opensearch.indices.ExistsRequest;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -46,6 +47,8 @@ public class OpenSearchIndexService {
                 .properties("product_name", Property.of(p -> p.text(t -> t)))
                 .properties("price", Property.of(p -> p.integer(i -> i)))
                 .properties("categories", Property.of(p -> p.keyword(k -> k)))
+                .properties("description", Property.of(p -> p.text(t -> t)))
+                .properties("product_url", Property.of(p -> p.keyword(k -> k))) // 추가
                 .properties("chunk_text", Property.of(p -> p.text(t -> t)))
                 .properties("chunk_vector", Property.of(p -> p.knnVector(k -> k
                         .dimension(1024)
@@ -71,16 +74,18 @@ public class OpenSearchIndexService {
             String chunkText = buildChunkText(item);
             List<Float> vector = aiServerClient.embed(chunkText);
 
-            Map<String, Object> document = Map.of(
-                    "company_id", item.getCompany().getId(),
-                    "client_code", item.getCompany().getClientCode(),
-                    "product_item_id", item.getId(),
-                    "product_name", item.getProductName(),
-                    "price", item.getPrice(),
-                    "categories", item.getCategoryNames(),
-                    "chunk_text", chunkText,
-                    "chunk_vector", vector
-            );
+            // Map.of()는 null 값 허용 안 하므로 HashMap 사용
+            Map<String, Object> document = new HashMap<>();
+            document.put("company_id", item.getCompany().getId());
+            document.put("client_code", item.getCompany().getClientCode());
+            document.put("product_item_id", item.getId());
+            document.put("product_name", item.getProductName());
+            document.put("price", item.getPrice());
+            document.put("categories", item.getCategoryNames());
+            document.put("description", item.getDescription());
+            document.put("product_url", item.getProductUrl()); // null 허용 — Map.of() 대신 HashMap 쓰는 이유
+            document.put("chunk_text", chunkText);
+            document.put("chunk_vector", vector);
 
             client.index(i -> i
                     .index(INDEX_NAME)
@@ -144,7 +149,8 @@ public class OpenSearchIndexService {
                                 ((Number) source.get("product_item_id")).longValue(),
                                 (String) source.get("product_name"),
                                 ((Number) source.get("price")).intValue(),
-                                (List<String>) source.get("categories")
+                                (List<String>) source.get("categories"),
+                                (String) source.get("product_url") // 추가
                         );
                     })
                     .toList();
@@ -152,13 +158,5 @@ public class OpenSearchIndexService {
         } catch (IOException e) {
             throw new RuntimeException("OpenSearch 검색 중 오류가 발생했습니다.", e);
         }
-    }
-
-    private float[] toFloatArray(List<Float> list) {
-        float[] result = new float[list.size()];
-        for (int i = 0; i < list.size(); i++) {
-            result[i] = list.get(i);
-        }
-        return result;
     }
 }

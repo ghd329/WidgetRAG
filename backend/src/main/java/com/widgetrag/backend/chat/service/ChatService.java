@@ -38,7 +38,12 @@ public class ChatService {
 
         List<RetrievedProductDto> products = searchResults.stream()
                 .map(p -> new RetrievedProductDto(
-                        p.productItemId(), p.productName(), p.price(), String.join(", ", p.categories())))
+                        p.productItemId(),
+                        p.productName(),
+                        p.price(),
+                        String.join(", ", p.categories()), // categories List → 문자열 변환
+                        p.productUrl()                      // productUrl 별도 필드로
+                ))
                 .toList();
 
         try {
@@ -52,7 +57,7 @@ public class ChatService {
 
     private ChatQueryResponseDto buildFallbackResponse(String question) {
         List<RetrievedProductDto> mockProducts = List.of(
-                new RetrievedProductDto(null, "린넨 셔츠", 29900, "셔츠/블라우스")
+                new RetrievedProductDto(null, "린넨 셔츠", 29900, "셔츠/블라우스", null) // productUrl null
         );
         String mockAnswer = String.format(
                 "'%s'에 대한 검색 결과가 없어 예시 데이터로 응답하고 있어요.", question);

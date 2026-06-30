@@ -4,5 +4,6 @@ public record RetrievedProductDto(
         Long productItemId,
         String productName,
         int price,
-        String category
+        String category,
+        String productUrl
 ) {}
