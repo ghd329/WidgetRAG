@@ -5,5 +5,6 @@ public record CsvMappingDto(
         String productNameColumn,
         String priceColumn,
         String categoryColumn,
-        String descriptionColumn
+        String descriptionColumn,
+        String urlColumn
 ) {}

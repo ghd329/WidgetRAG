@@ -9,6 +9,7 @@ public record ProductItemResponseDto(
         int price,
         List<String> categories, // 단일 → 리스트로 변경
         String description,
+        String productUrl,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {}
