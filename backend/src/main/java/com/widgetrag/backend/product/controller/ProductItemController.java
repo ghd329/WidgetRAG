@@ -29,6 +29,12 @@ public class ProductItemController {
         return ResponseEntity.ok(productItemService.getList(companyId));
     }
 
+    @Operation(summary = "쇼핑몰 공개 상품 목록 조회", description = "clientCode로 로그인 없이 상품 목록을 조회합니다.")
+    @GetMapping("/public/{clientCode}")
+    public ResponseEntity<List<ProductItemResponseDto>> listPublic(@PathVariable String clientCode) {
+        return ResponseEntity.ok(productItemService.getListByClientCode(clientCode));
+    }
+
     @Operation(summary = "개별 상품 추가", description = "화면에서 직접 상품 하나를 추가합니다.")
     @PostMapping
     public ResponseEntity<ProductItemResponseDto> create(

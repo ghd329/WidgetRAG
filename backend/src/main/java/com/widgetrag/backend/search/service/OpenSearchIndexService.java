@@ -124,19 +124,13 @@ public class OpenSearchIndexService {
                             .field("chunk_vector")
                             .vector(queryVector)
                             .k(TOP_K)
-                    )
-            );
-
-            Query combined = Query.of(q -> q
-                    .bool(b -> b
                             .filter(clientCodeFilter)
-                            .must(knnQuery)
                     )
             );
 
             SearchRequest request = SearchRequest.of(s -> s
                     .index(INDEX_NAME)
-                    .query(combined)
+                    .query(knnQuery)
                     .size(TOP_K)
             );
 

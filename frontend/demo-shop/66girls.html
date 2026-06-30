@@ -257,7 +257,8 @@
     </main>
 
     <script>
-        const API_BASE = "http://127.0.0.1:8080";
+        const API_BASE = "http://localhost:8080";
+        const CLIENT_CODE = localStorage.getItem("clientCode");
         let productsCache = [];
 
         function scrollToProducts() {
@@ -378,9 +379,8 @@
             try {
                 productGrid.innerHTML = `<div class="empty">상품을 불러오는 중입니다.</div>`;
 
-                const response = await fetch(`${API_BASE}/api/product-items`, {
-                    method: "GET",
-                    credentials: "include"
+                const response = await fetch(`${API_BASE}/api/product-items/public/${CLIENT_CODE}`, {
+                    method: "GET"
                 });
 
                 if (!response.ok) {
@@ -478,11 +478,23 @@
             });
         }
 
-        window.onload = loadProducts;
+        function injectWidget() {
+            const script = document.createElement("script");
+            script.src = `${API_BASE}/widget.js`;
+            script.dataset.clientCode = CLIENT_CODE;
+            script.dataset.backendBase = API_BASE;
+            document.body.appendChild(script);
+        }
+
+        window.onload = () => {
+            loadProducts();
+            injectWidget();
+        };
     </script>
-<script
+
+    <script
     src="http://127.0.0.1:8080/widget.js"
-    data-client-code="shop_e1b3b8bd">
+    data-client-code="shop_5b4269e6">
 </script>
 </body>
 </html>
