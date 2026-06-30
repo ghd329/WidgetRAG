@@ -7,136 +7,250 @@
 
     <link rel="stylesheet" href="../assets/css/common.css">
     <link rel="stylesheet" href="../assets/css/customer.css">
+    <link rel="stylesheet" href="../assets/css/chatbot-widget.css">
 
     <script src="../assets/js/customer.js"></script>
+    <script src="../assets/js/chatbot-widget.js"></script>
 </head>
 
 <body class="customer-body">
-    <div class="chat-wrap">
-
-        <div class="chat-header">
-            <div class="header-left">
-                <div class="bot-icon">🤖</div>
-
-                <div>
-                    <h1>AI 쇼핑 도우미</h1>
-                    <p>이 쇼핑몰의 상품 데이터를 기반으로 답변해드려요.</p>
-                </div>
-            </div>
-
-            <a class="history-btn" href="history.html">
-                대화기록
-            </a>
-        </div>
-
-        <div class="chat-box" id="chatBox">
-
-            <div class="date-chip">오늘</div>
-
-            <div class="chat-row bot-row">
-                <div class="avatar">🤖</div>
-
-                <div>
-                    <div class="message bot">
-                        안녕하세요! 👋<br>
-                        저는 이 쇼핑몰의 상품 정보를 기반으로 답변하는 AI 쇼핑 도우미입니다.<br>
-                        원하는 상황이나 조건을 말해주시면 상품을 추천해드릴게요.
-                    </div>
-
-                    <div class="message-time">방금 전</div>
-                </div>
-            </div>
-
-            <div class="recommend-box">
-                <div class="recommend-title">이렇게 질문해볼 수 있어요</div>
-
-                <div class="quick-menu">
-                    <div class="quick-card" onclick="quickQuestion('지금 날씨에 맞는 상품 추천해줘')">
-                        <div class="quick-icon">🌤️</div>
-                        <div>
-                            <h4>상황 맞춤 추천</h4>
-                            <span>날씨, 장소, 목적에 맞는 상품 추천</span>
-                        </div>
-                    </div>
-
-                    <div class="quick-card" onclick="quickQuestion('3만원 이하로 살 수 있는 상품 추천해줘')">
-                        <div class="quick-icon">💰</div>
-                        <div>
-                            <h4>예산별 추천</h4>
-                            <span>원하는 가격대에 맞는 상품 추천</span>
-                        </div>
-                    </div>
-
-                    <div class="quick-card" onclick="quickQuestion('친구 생일 선물로 좋은 상품 추천해줘')">
-                        <div class="quick-icon">🎁</div>
-                        <div>
-                            <h4>선물 추천</h4>
-                            <span>상대와 상황에 맞는 선물 추천</span>
-                        </div>
-                    </div>
-
-                    <div class="quick-card" onclick="quickQuestion('인기 있는 상품 추천해줘')">
-                        <div class="quick-icon">🔥</div>
-                        <div>
-                            <h4>인기 상품</h4>
-                            <span>많이 찾는 상품 중심 추천</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="sample-answer">
-                <div class="sample-title">답변 예시</div>
-
-                <div class="product-preview">
-                    <div class="product-card">
-                        <div class="product-img">🛍️</div>
-
-                        <div>
-                            <strong>추천 상품명</strong>
-                            <p>고객님의 질문 조건에 맞는 상품을 추천해드립니다.</p>
-                            <span>추천 이유: 상품 설명, 가격, 카테고리, 상황 조건 기반</span>
-                        </div>
-                    </div>
-
-                    <div class="product-card">
-                        <div class="product-img">🔎</div>
-
-                        <div>
-                            <strong>RAG 검색 기반 답변</strong>
-                            <p>업로드된 상품 데이터에서 관련 정보를 검색한 뒤 답변합니다.</p>
-                            <span>OpenSearch 검색 결과 기반으로 응답 생성 예정</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-
-        <div class="chat-input">
-            <input
-                id="messageInput"
-                type="text"
-                placeholder="예: 친구 생일 선물로 좋은 상품 추천해줘"
-                onkeydown="if(event.key==='Enter') sendMessage()"
-            >
-
-            <button class="primary-btn send-btn" onclick="sendMessage()">
-                ➤
-            </button>
-        </div>
-
-        <p class="chat-notice">
-            AI 추천 답변은 해당 기업이 등록한 상품 데이터와 RAG 검색 결과를 기반으로 생성됩니다.
-        </p>
-
+    <!-- 챗봇 위젯 -->
+    <div id="chatbotBubble" onclick="openChatbot()">
+        🤖
     </div>
 
+    <div id="chatbotWidget">
+        <div class="chatbot-header">
+            <div>
+                <strong>AI 쇼핑 도우미</strong>
+                <p>상품 데이터를 기반으로 추천해드려요</p>
+            </div>
+            <button onclick="closeChatbot()">×</button>
+        </div>
+
+        <div id="chatbotMessages" class="chatbot-messages">
+            <div class="bot-message">
+                안녕하세요! 원하는 상품 조건을 말해주시면 추천해드릴게요.
+            </div>
+
+            <div class="quick-buttons">
+                <button onclick="quickAsk('3만원 이하 상품 추천해줘')">3만원 이하 추천</button>
+                <button onclick="quickAsk('여름에 입기 좋은 옷 추천해줘')">여름 옷 추천</button>
+                <button onclick="quickAsk('친구 생일 선물 추천해줘')">선물 추천</button>
+            </div>
+        </div>
+
+        <div class="chatbot-input">
+            <input id="chatbotInput"
+                placeholder="질문을 입력하세요"
+                onkeydown="if(event.key==='Enter') sendChatbotMessage()">
+            <button onclick="sendChatbotMessage()">➤</button>
+        </div>
+    </div>
+
+    <style>
+    #chatbotBubble {
+        position: fixed;
+        right: 32px;
+        bottom: 32px;
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: #2563eb;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        cursor: pointer;
+        box-shadow: 0 12px 30px rgba(37,99,235,.35);
+        z-index: 9999;
+    }
+
+    #chatbotWidget {
+        position: fixed;
+        right: 32px;
+        bottom: 110px;
+        width: 390px;
+        height: 560px;
+        background: white;
+        border-radius: 26px;
+        box-shadow: 0 20px 60px rgba(0,0,0,.22);
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+        z-index: 9999;
+    }
+
+    .chatbot-header {
+        padding: 22px;
+        background: #f8fafc;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .chatbot-header p {
+        margin-top: 4px;
+        font-size: 13px;
+        color: #6b7280;
+    }
+
+    .chatbot-header button {
+        border: none;
+        background: #e5e7eb;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        font-size: 22px;
+        cursor: pointer;
+    }
+
+    .chatbot-messages {
+        flex: 1;
+        padding: 18px;
+        overflow-y: auto;
+        background: #f9fafb;
+    }
+
+    .bot-message,
+    .user-message {
+        max-width: 80%;
+        padding: 12px 14px;
+        border-radius: 16px;
+        margin-bottom: 12px;
+        line-height: 1.5;
+        font-size: 14px;
+    }
+
+    .bot-message {
+        background: white;
+        color: #111827;
+        border: 1px solid #e5e7eb;
+    }
+
+    .user-message {
+        background: #2563eb;
+        color: white;
+        margin-left: auto;
+    }
+
+    .quick-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .quick-buttons button {
+        border: none;
+        background: #eef4ff;
+        color: #2563eb;
+        padding: 11px;
+        border-radius: 12px;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .chatbot-input {
+        display: flex;
+        gap: 8px;
+        padding: 14px;
+        border-top: 1px solid #e5e7eb;
+    }
+
+    .chatbot-input input {
+        flex: 1;
+        border: 1px solid #d1d5db;
+        border-radius: 14px;
+        padding: 12px;
+        outline: none;
+    }
+
+    .chatbot-input button {
+        width: 46px;
+        border: none;
+        border-radius: 14px;
+        background: #2563eb;
+        color: white;
+        font-weight: 900;
+        cursor: pointer;
+    }
+    </style>
+
     <script>
-        function quickQuestion(text) {
-            document.getElementById("messageInput").value = text;
-            sendMessage();
+    const CHATBOT_API_BASE = "http://127.0.0.1:8080";
+    const CLIENT_CODE = "shop_56d80286";
+
+    function openChatbot() {
+        document.getElementById("chatbotWidget").style.display = "flex";
+        document.getElementById("chatbotBubble").style.display = "none";
+    }
+
+    function closeChatbot() {
+        document.getElementById("chatbotWidget").style.display = "none";
+        document.getElementById("chatbotBubble").style.display = "flex";
+    }
+
+    function quickAsk(text) {
+        document.getElementById("chatbotInput").value = text;
+        sendChatbotMessage();
+    }
+
+    function appendMessage(type, text) {
+        const messages = document.getElementById("chatbotMessages");
+        const div = document.createElement("div");
+
+        div.className = type === "user" ? "user-message" : "bot-message";
+        div.innerText = text;
+
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    async function sendChatbotMessage() {
+        const input = document.getElementById("chatbotInput");
+        const question = input.value.trim();
+
+        if (!question) return;
+
+        appendMessage("user", question);
+        input.value = "";
+
+        appendMessage("bot", "답변을 생성하는 중입니다...");
+
+        try {
+            const response = await fetch(`${CHATBOT_API_BASE}/api/chatbot/ask`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    clientCode: CLIENT_CODE,
+                    question: question
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(await response.text());
+            }
+
+            const result = await response.json();
+
+            const messages = document.getElementById("chatbotMessages");
+            messages.lastChild.remove();
+
+            appendMessage("bot", result.answer || "추천 답변을 찾지 못했습니다.");
+
+        } catch (error) {
+            console.error(error);
+
+            const messages = document.getElementById("chatbotMessages");
+            messages.lastChild.remove();
+
+            appendMessage("bot", "답변을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
         }
+    }
     </script>
 </body>
 </html>

@@ -64,3 +64,28 @@ textarea {
   text-decoration: none;
   margin-left: 6px;
 }
+
+/* ===========================
+   Login Error
+=========================== */
+
+.field-error {
+    display: none;
+    color: #ef4444;
+    font-size: 13px;
+    margin: 6px 0 14px;
+    font-weight: 500;
+}
+
+.login-message {
+    display: none;
+    text-align: center;
+    color: #ef4444;
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 14px;
+}
+
+input.error {
+    border: 1px solid #ef4444 !important;
+}

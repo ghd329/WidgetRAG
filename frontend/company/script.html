@@ -4,37 +4,105 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Script</title>
-    <script src="https://kit.fontawesome.com/8f3f0f6f0f.js" crossorigin="anonymous"></script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link rel="stylesheet" href="../assets/css/common.css">
     <link rel="stylesheet" href="../assets/css/company.css">
+
     <script src="../assets/js/auth.js"></script>
     <script src="../assets/js/api.js"></script>
     <script src="../assets/js/company.js"></script>
+
+    <style>
+        .code-box {
+            width: 100%;
+            min-height: 180px;
+            padding: 18px;
+            border: 1px solid #d1d5db;
+            border-radius: 14px;
+            background: #111827;
+            color: #e5e7eb;
+            font-family: Consolas, monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: none;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-bottom: 22px;
+        }
+
+        .info-card {
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            padding: 16px;
+        }
+
+        .info-card span {
+            display: block;
+            color: #6b7280;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+
+        .info-card strong {
+            color: #111827;
+            font-size: 15px;
+            word-break: break-all;
+        }
+
+        .notice {
+            margin-top: 18px;
+            background: #eef4ff;
+            color: #374151;
+            padding: 16px;
+            border-radius: 14px;
+            line-height: 1.6;
+        }
+
+        .copy-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+    </style>
 </head>
-<body onload="initPage()">
+
+<body onload="initScriptPage()">
     <div class="company-layout">
-        
+
         <aside class="sidebar">
             <h2>Biz Chatbot</h2>
+
             <ul>
                 <li onclick="location.href='dashboard.html'">
                     <i class="fa-solid fa-chart-line"></i>관리자 홈
                 </li>
+
                 <li onclick="location.href='upload.html'">
                     <i class="fa-solid fa-file-arrow-up"></i>데이터 업로드
                 </li>
+
                 <li onclick="location.href='products.html'">
                     <i class="fa-solid fa-box"></i>상품 관리
                 </li>
+
                 <li onclick="location.href='questions.html'">
                     <i class="fa-solid fa-comments"></i>고객 질문 관리
                 </li>
+
                 <li onclick="location.href='answers.html'">
                     <i class="fa-solid fa-brain"></i>AI 답변 관리
                 </li>
+
                 <li class="active" onclick="location.href='script.html'">
                     <i class="fa-solid fa-code"></i>위젯 설치 코드
                 </li>
+
                 <li onclick="location.href='settings.html'">
                     <i class="fa-solid fa-gear"></i>설정
                 </li>
@@ -45,8 +113,9 @@
             <div class="top">
                 <div>
                     <h1>위젯 설치 코드</h1>
-                    <p>외부 쇼핑몰에 챗봇을 연결할 때 사용하는 코드입니다.</p>
+                    <p>외부 쇼핑몰에 챗봇을 연결할 때 사용하는 기업 전용 코드입니다.</p>
                 </div>
+
                 <div class="user-box">
                     <span>기업 관리자님</span>
                     <button class="logout" onclick="logout()">로그아웃</button>
@@ -54,21 +123,85 @@
             </div>
 
             <div class="card">
+                <h3 style="margin-bottom: 18px;">기업 정보</h3>
+
+                <div class="info-grid">
+                    <div class="info-card">
+                        <span>회사명</span>
+                        <strong id="companyNameText">-</strong>
+                    </div>
+
+                    <div class="info-card">
+                        <span>상점 코드</span>
+                        <strong id="clientCodeText">-</strong>
+                    </div>
+
+                    <div class="info-card">
+                        <span>백엔드 주소</span>
+                        <strong>http://127.0.0.1:8080</strong>
+                    </div>
+                </div>
+
                 <h3 style="margin-bottom: 15px;">삽입 코드</h3>
-                
-                <textarea id="scriptCode" class="code-box" readonly>&lt;script src="https://your-domain.com/customer/chatbot.js"&gt;&lt;/script&gt;
-&lt;script&gt;
-  AIChatbot.init({ shopId: "SHOP_001" });
-&lt;/script&gt;</textarea>
-                
-                <button class="primary-btn" style="margin-top: 15px;" onclick="copyScript()">코드 복사</button>
-                
+
+                <textarea id="scriptCode" class="code-box" readonly></textarea>
+
+                <div class="copy-row">
+                    <button class="primary-btn" onclick="copyScript()">코드 복사</button>
+                    <button class="primary-btn" onclick="refreshScriptCode()">코드 새로고침</button>
+                </div>
+
                 <div class="notice">
-                    프로젝트 설명용 화면입니다. 실제 고객은 별도 고객용 채팅 화면에서 질문만 입력할 수 있습니다.
+                    이 코드를 쇼핑몰 HTML의 <strong>&lt;/body&gt; 바로 위</strong>에 붙여 넣으면 우측 하단에 AI 챗봇 위젯이 표시됩니다.
+                    기업별 <strong>clientCode</strong>가 포함되어 있어 해당 기업이 업로드한 상품 데이터만 기반으로 답변합니다.
                 </div>
             </div>
         </main>
 
     </div>
+
+    <script>
+        function initScriptPage() {
+            initPage();
+            refreshScriptCode();
+        }
+
+        function refreshScriptCode() {
+            const clientCode = localStorage.getItem("clientCode") || "";
+            const companyName = localStorage.getItem("companyName") || "-";
+
+            document.getElementById("companyNameText").innerText = companyName;
+            document.getElementById("clientCodeText").innerText = clientCode || "상점 코드 없음";
+
+            if (!clientCode) {
+                document.getElementById("scriptCode").value =
+`로그인 정보에서 clientCode를 찾지 못했습니다.
+다시 로그인한 뒤 확인해주세요.`;
+                return;
+            }
+
+            const installCode =
+`<script
+    src="http://127.0.0.1:8080/widget.js"
+    data-client-code="${clientCode}">
+<\/script>`;
+
+            document.getElementById("scriptCode").value = installCode;
+        }
+
+        async function copyScript() {
+            const scriptCode = document.getElementById("scriptCode").value;
+
+            try {
+                await navigator.clipboard.writeText(scriptCode);
+                alert("위젯 설치 코드가 복사되었습니다.");
+            } catch (error) {
+                const textarea = document.getElementById("scriptCode");
+                textarea.select();
+                document.execCommand("copy");
+                alert("위젯 설치 코드가 복사되었습니다.");
+            }
+        }
+    </script>
 </body>
 </html>

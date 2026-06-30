@@ -1,1 +1,27 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>대화기록</title><link rel="stylesheet" href="../assets/css/common.css"><link rel="stylesheet" href="../assets/css/customer.css"><script src="../assets/js/customer.js"></script></head><body class="customer-body" onload="renderHistory()"><div class="chat-wrap"><div class="chat-header"><h1>대화기록</h1><div><a href="chatbot.html">채팅하기</a></div></div><div class="history-list" id="historyList"></div><div style="padding:18px;background:#fff;border-top:1px solid #eee"><button class="danger-btn" onclick="clearHistory()">기록 삭제</button></div></div></body></html>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>대화기록</title>
+    <link rel="stylesheet" href="../assets/css/common.css">
+    <link rel="stylesheet" href="../assets/css/customer.css">
+    <script src="../assets/js/customer.js"></script>
+</head>
+<body class="customer-body" onload="renderHistory()">
+    <div class="chat-wrap">
+        <div class="chat-header">
+            <h1>대화기록</h1>
+            <div>
+                <a href="chatbot.html">채팅하기</a>
+            </div>
+        </div>
+        
+        <div class="history-list" id="historyList"></div>
+        
+        <div style="padding:18px;background:#fff;border-top:1px solid #eee">
+            <button class="danger-btn" onclick="clearHistory()">기록 삭제</button>
+        </div>
+    </div>
+</body>
+</html>
