@@ -46,9 +46,17 @@
     <div class="login-card">
         <h1>기업 로그인</h1>
         <p class="desc">쇼핑몰 AI 챗봇 관리자 페이지입니다.</p>
-        <input type="email" id="email" placeholder="이메일">
-        <input type="password" id="password" placeholder="비밀번호">
-        <button class="primary-btn" onclick="loginAsCompany()">로그인</button>
+        <form onsubmit="loginAsCompany(); return false;">
+            <input type="email" id="email" placeholder="이메일">
+            <div id="emailError" class="field-error"></div>
+
+            <input type="password" id="password" placeholder="비밀번호">
+            <div id="passwordError" class="field-error"></div>
+
+            <button class="primary-btn" type="submit">로그인</button>
+
+            <div id="loginMessage" class="login-message"></div>
+        </form>
         <div class="link">
             아직 계정이 없으신가요?
             <a href="company-signup.html">회원가입</a>
@@ -57,17 +65,42 @@
     <script>
         const BACKEND_BASE = "http://127.0.0.1:8080";
 
+        function clearLoginErrors() {
+            document.getElementById("email").classList.remove("error");
+            document.getElementById("password").classList.remove("error");
+
+            document.getElementById("emailError").style.display = "none";
+            document.getElementById("passwordError").style.display = "none";
+            document.getElementById("loginMessage").style.display = "none";
+        }
+
+        function showFieldError(inputId, errorId, message) {
+            document.getElementById(inputId).classList.add("error");
+
+            const errorBox = document.getElementById(errorId);
+            errorBox.innerText = message;
+            errorBox.style.display = "block";
+        }
+
+        function showLoginMessage(message) {
+            const box = document.getElementById("loginMessage");
+            box.innerText = message;
+            box.style.display = "block";
+        }
+
         async function loginAsCompany() {
             const email = document.getElementById("email").value.trim();
             const password = document.getElementById("password").value.trim();
 
+            clearLoginErrors();
+
             if (!email) {
-                alert("이메일을 입력해주세요.");
+                showFieldError("email", "emailError", "통합계정 또는 이메일을 입력해 주세요.");
                 return;
             }
 
             if (!password) {
-                alert("비밀번호를 입력해주세요.");
+                showFieldError("password", "passwordError", "비밀번호를 입력해 주세요.");
                 return;
             }
 
@@ -101,12 +134,12 @@
                 localStorage.setItem("memberId", result.memberId);
                 localStorage.setItem("companyName", result.companyName);
 
-                alert("로그인되었습니다.");
+                
                 location.href = "../company/dashboard.html";
 
             } catch (error) {
                 console.error(error);
-                alert("로그인 실패\n" + error.message);
+                showLoginMessage("이메일 또는 비밀번호가 올바르지 않습니다.");
             }
         }
     </script>

@@ -6,11 +6,7 @@
     <title>Style Shop</title>
 
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: "Pretendard", sans-serif;
@@ -39,13 +35,17 @@
 
         .nav {
             display: flex;
-            gap: 28px;
+            gap: 22px;
             color: #374151;
-            font-weight: 700;
+            font-weight: 800;
         }
 
         .nav span {
             cursor: pointer;
+        }
+
+        .nav span:hover {
+            color: #2563eb;
         }
 
         .shop-actions {
@@ -56,22 +56,19 @@
 
         .hero {
             background: linear-gradient(135deg, #dbeafe, #eef4ff);
-            padding: 80px 70px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            padding: 75px 70px;
         }
 
         .hero-text h1 {
-            font-size: 48px;
+            font-size: 46px;
             line-height: 1.25;
-            margin-bottom: 20px;
+            margin-bottom: 18px;
         }
 
         .hero-text p {
             font-size: 18px;
             color: #4b5563;
-            margin-bottom: 30px;
+            margin-bottom: 28px;
         }
 
         .hero-btn {
@@ -83,18 +80,6 @@
             font-weight: 800;
             cursor: pointer;
             font-size: 16px;
-        }
-
-        .hero-visual {
-            width: 320px;
-            height: 320px;
-            background: white;
-            border-radius: 36px;
-            box-shadow: 0 20px 45px rgba(37,99,235,.18);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 110px;
         }
 
         .shop-container {
@@ -129,12 +114,13 @@
             border-radius: 12px;
             padding: 0 14px;
             outline: none;
+            background: white;
         }
 
         .product-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 24px;
+            gap: 22px;
         }
 
         .product-card {
@@ -143,6 +129,7 @@
             overflow: hidden;
             box-shadow: 0 10px 25px rgba(0,0,0,.06);
             transition: .25s;
+            cursor: pointer;
         }
 
         .product-card:hover {
@@ -150,17 +137,8 @@
             box-shadow: 0 16px 35px rgba(0,0,0,.1);
         }
 
-        .product-img {
-            height: 190px;
-            background: linear-gradient(135deg, #eef4ff, #dbeafe);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 70px;
-        }
-
         .product-info {
-            padding: 20px;
+            padding: 24px;
         }
 
         .product-category {
@@ -171,26 +149,34 @@
             font-weight: 800;
             padding: 6px 10px;
             border-radius: 999px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }
 
         .product-info h3 {
             font-size: 18px;
             margin-bottom: 10px;
+            line-height: 1.4;
         }
 
         .product-desc {
             color: #6b7280;
             font-size: 14px;
             line-height: 1.5;
-            min-height: 42px;
-            margin-bottom: 14px;
+            margin-bottom: 18px;
         }
 
         .product-price {
             font-size: 20px;
             font-weight: 900;
             color: #111827;
+        }
+
+        .product-link {
+            display: inline-block;
+            margin-top: 12px;
+            color: #2563eb;
+            font-weight: 800;
+            text-decoration: none;
         }
 
         .empty {
@@ -203,52 +189,19 @@
         }
 
         @media (max-width: 1100px) {
-            .product-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-
-            .hero {
-                flex-direction: column;
-                gap: 35px;
-                text-align: center;
-            }
+            .product-grid { grid-template-columns: repeat(3, 1fr); }
         }
 
         @media (max-width: 760px) {
-            .shop-header {
-                padding: 0 24px;
-            }
-
-            .nav {
-                display: none;
-            }
-
-            .hero {
-                padding: 60px 24px;
-            }
-
-            .shop-container {
-                padding: 40px 24px 90px;
-            }
-
-            .section-top {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 18px;
-            }
-
-            .filter-box {
-                width: 100%;
-            }
-
-            .filter-box input,
-            .filter-box select {
-                width: 100%;
-            }
-
-            .product-grid {
-                grid-template-columns: repeat(1, 1fr);
-            }
+            .shop-header { padding: 0 24px; }
+            .nav { display: none; }
+            .hero { padding: 55px 24px; }
+            .hero-text h1 { font-size: 34px; }
+            .shop-container { padding: 40px 24px 90px; }
+            .section-top { flex-direction: column; align-items: flex-start; gap: 18px; }
+            .filter-box { width: 100%; flex-direction: column; }
+            .filter-box input, .filter-box select { width: 100%; }
+            .product-grid { grid-template-columns: repeat(1, 1fr); }
         }
     </style>
 </head>
@@ -258,11 +211,12 @@
         <div class="logo">Style Shop</div>
 
         <nav class="nav">
-            <span>NEW</span>
-            <span>BEST</span>
-            <span>OUTER</span>
-            <span>TOP</span>
-            <span>BOTTOM</span>
+            <span onclick="setCategory('all')">전체</span>
+            <span onclick="setCategory('상의')">상의</span>
+            <span onclick="setCategory('하의')">하의</span>
+            <span onclick="setCategory('아우터')">아우터</span>
+            <span onclick="setCategory('원피스')">원피스</span>
+            <span onclick="setCategory('가방')">가방</span>
         </nav>
 
         <div class="shop-actions">
@@ -274,12 +228,8 @@
     <section class="hero">
         <div class="hero-text">
             <h1>오늘의 스타일을<br>AI와 함께 찾아보세요</h1>
-            <p>업로드된 상품 데이터를 기반으로 쇼핑몰 상품을 보여주고, 챗봇이 상황에 맞는 상품을 추천합니다.</p>
+            <p>관리자 페이지에서 업로드한 상품 데이터를 기반으로 쇼핑몰 상품을 표시합니다.</p>
             <button class="hero-btn" onclick="scrollToProducts()">상품 둘러보기</button>
-        </div>
-
-        <div class="hero-visual">
-            👕
         </div>
     </section>
 
@@ -287,7 +237,7 @@
         <div class="section-top">
             <div>
                 <h2>상품 목록</h2>
-                <p>관리자 페이지에서 업로드한 CSV 상품 데이터가 표시됩니다.</p>
+                <p>업로드된 CSV 상품 데이터가 자동으로 표시됩니다.</p>
             </div>
 
             <div class="filter-box">
@@ -301,35 +251,23 @@
 
         <div class="product-grid" id="productGrid">
             <div class="empty">
-                등록된 상품이 없습니다. 관리자 페이지에서 상품 CSV를 업로드해주세요.
+                상품을 불러오는 중입니다.
             </div>
         </div>
     </main>
 
     <script>
-        const API_BASE = "http://localhost:8080";
+        const API_BASE = "http://127.0.0.1:8080";
         let productsCache = [];
 
         function scrollToProducts() {
-            document.getElementById("productsSection").scrollIntoView({
-                behavior: "smooth"
-            });
+            document.getElementById("productsSection").scrollIntoView({ behavior: "smooth" });
         }
 
-        function getProductIcon(category) {
-            if (!category) return "🛍️";
-
-            if (category.includes("상의")) return "👕";
-            if (category.includes("하의")) return "👖";
-            if (category.includes("아우터")) return "🧥";
-            if (category.includes("신발")) return "👟";
-            if (category.includes("가방")) return "👜";
-            if (category.includes("원피스")) return "👗";
-            if (category.includes("스커트")) return "👗";
-            if (category.includes("잡화")) return "🧢";
-            if (category.includes("악세서리")) return "💍";
-
-            return "🛍️";
+        function setCategory(category) {
+            document.getElementById("categoryFilter").value = category;
+            scrollToProducts();
+            renderProducts();
         }
 
         function getValue(item, keys) {
@@ -341,12 +279,64 @@
             return "";
         }
 
+        function normalizeCategory(category) {
+            const text = String(category || "").toLowerCase();
+
+            if (!text) return "기타";
+
+            if (text.includes("니트") || text.includes("티셔츠") || text.includes("맨투맨") ||
+                text.includes("후드") || text.includes("셔츠") || text.includes("블라우스") ||
+                text.includes("top") || text.includes("tee") || text.includes("knit")) {
+                return "상의";
+            }
+
+            if (text.includes("팬츠") || text.includes("바지") || text.includes("청바지") ||
+                text.includes("슬랙스") || text.includes("레깅스") || text.includes("스커트") ||
+                text.includes("bottom") || text.includes("pants") || text.includes("jean") || text.includes("skirt")) {
+                return "하의";
+            }
+
+            if (text.includes("자켓") || text.includes("재킷") || text.includes("코트") ||
+                text.includes("점퍼") || text.includes("가디건") || text.includes("아우터") ||
+                text.includes("outer") || text.includes("jacket") || text.includes("coat") || text.includes("cardigan")) {
+                return "아우터";
+            }
+
+            if (text.includes("원피스") || text.includes("dress")) {
+                return "원피스";
+            }
+
+            if (text.includes("신발") || text.includes("슈즈") || text.includes("운동화") || text.includes("shoes")) {
+                return "신발";
+            }
+
+            if (text.includes("가방") || text.includes("백") || text.includes("bag")) {
+                return "가방";
+            }
+
+            if (text.includes("모자") || text.includes("악세") || text.includes("액세") ||
+                text.includes("잡화") || text.includes("acc")) {
+                return "잡화";
+            }
+
+            return "기타";
+        }
+
         function normalizeProduct(item) {
+            const rawCategory = getValue(item, [
+                "category_main", "categoryMain", "mainCategory", "category"
+            ]);
+
+            const categories = item.categories || item.categoryNames || [];
+            const firstCategory = Array.isArray(categories) && categories.length > 0
+                ? categories[0]
+                : rawCategory;
+
             return {
                 id: getValue(item, ["id", "itemId", "productItemId"]),
                 product_name: getValue(item, ["product_name", "productName", "itemName", "name"]),
-                category_main: getValue(item, ["category_main", "categoryMain", "mainCategory", "category"]),
-                category_sub: getValue(item, ["category_sub", "categorySub", "subCategory"]),
+                category_main: normalizeCategory(firstCategory),
+                category_sub: firstCategory || "-",
                 description: getValue(item, ["description", "productDescription", "content"]),
                 price: getValue(item, ["price", "productPrice", "itemPrice"]),
                 url: getValue(item, ["url", "productUrl", "link"])
@@ -360,19 +350,15 @@
                 <option value="all">전체 카테고리</option>
             `;
 
-            const categories = [
-                ...new Set(
-                    products
-                        .map(item => item.category_main)
-                        .filter(Boolean)
-                )
-            ];
+            const categories = ["상의", "하의", "아우터", "원피스", "신발", "가방", "잡화", "기타"];
 
             categories.forEach(category => {
-                const option = document.createElement("option");
-                option.value = category;
-                option.innerText = category;
-                categoryFilter.appendChild(option);
+                if (products.some(item => item.category_main === category)) {
+                    const option = document.createElement("option");
+                    option.value = category;
+                    option.innerText = category;
+                    categoryFilter.appendChild(option);
+                }
             });
         }
 
@@ -390,19 +376,19 @@
             const productGrid = document.getElementById("productGrid");
 
             try {
-                productGrid.innerHTML = `
-                    <div class="empty">
-                        상품을 불러오는 중입니다.
-                    </div>
-                `;
+                productGrid.innerHTML = `<div class="empty">상품을 불러오는 중입니다.</div>`;
 
-                const response = await fetch(`${API_BASE}/api/product-items`);
+                const response = await fetch(`${API_BASE}/api/product-items`, {
+                    method: "GET",
+                    credentials: "include"
+                });
 
                 if (!response.ok) {
                     throw new Error("상품 목록 조회 실패");
                 }
 
                 const data = await response.json();
+                console.log("shop products:", data);
 
                 productsCache = Array.isArray(data)
                     ? data.map(normalizeProduct)
@@ -457,17 +443,22 @@
             }
 
             filteredProducts.forEach(product => {
+
                 const card = document.createElement("div");
                 card.className = "product-card";
 
-                card.innerHTML = `
-                    <div class="product-img">
-                        ${getProductIcon(product.category_main)}
-                    </div>
+                if (product.url) {
+                    card.onclick = () => {
+                        window.open(product.url, "_blank");
+                    };
+                }
 
+                card.innerHTML = `
                     <div class="product-info">
+
                         <span class="product-category">
-                            ${product.category_main || "기타"} / ${product.category_sub || "-"}
+                            ${product.category_sub || "기타"}
+                            
                         </span>
 
                         <h3>${product.product_name || "상품명 없음"}</h3>
@@ -480,11 +471,6 @@
                             ${formatPrice(product.price)}
                         </div>
 
-                        <a href="${product.url || "#"}"
-                        target="_blank"
-                        style="display:inline-block; margin-top:12px; color:#2563eb; font-weight:800; text-decoration:none;">
-                            상품 보러가기
-                        </a>
                     </div>
                 `;
 
@@ -492,11 +478,11 @@
             });
         }
 
-        window.onload = function () {
-            loadProducts();
-        };
+        window.onload = loadProducts;
     </script>
-
-    <!-- <script src="../assets/js/widget.js"></script> -->
+<script
+    src="http://127.0.0.1:8080/widget.js"
+    data-client-code="shop_e1b3b8bd">
+</script>
 </body>
 </html>
