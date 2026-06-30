@@ -81,7 +81,7 @@ public class ProductItem {
         item.productName = productName;
         item.price = price;
         item.description = description;
-        item.productUrl = productUrl;
+        item.productUrl = normalizeUrl(productUrl); // 정규화 적용
         item.createdAt = LocalDateTime.now();
         return item;
     }
@@ -109,20 +109,30 @@ public class ProductItem {
         this.productName = productName;
         this.price = price;
         this.description = description;
-        this.productUrl = productUrl;
+        this.productUrl = normalizeUrl(productUrl); // 정규화 적용
         this.updatedBy = member;
         this.updatedAt = LocalDateTime.now();
     }
 
     public boolean hasDifferentContent(String productName, int price, String description, String productUrl) {
+        String normalizedUrl = normalizeUrl(productUrl);
         return !Objects.equals(this.productName, productName)
                 || this.price != price
                 || !Objects.equals(this.description, description)
-                || !Objects.equals(this.productUrl, productUrl);
+                || !Objects.equals(this.productUrl, normalizedUrl);
     }
 
     public void markAsDeleted(Member member) {
         this.deletedBy = member;
         this.deletedAt = LocalDateTime.now();
+    }
+    // URL 검증/정규화 - http(s) 스킴 없으면 null 처리 (깨진 링크 방지)
+    private static String normalizeUrl(String url) {
+        if (url == null || url.isBlank()) return null;
+        String trimmed = url.trim();
+        if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+            return null;
+        }
+        return trimmed;
     }
 }

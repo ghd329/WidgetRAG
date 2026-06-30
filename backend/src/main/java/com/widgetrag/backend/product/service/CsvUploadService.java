@@ -30,7 +30,6 @@ public class CsvUploadService {
     private final CompanyRepository companyRepository;
     private final CompanyCsvMappingRepository mappingRepository;
 
-    // 1단계: 파일을 임시 저장하고 헤더/샘플/추천 매핑을 반환
     public CsvPreviewResponseDto preview(MultipartFile file, Long companyId) {
 
         String token = UUID.randomUUID().toString();
@@ -72,7 +71,6 @@ public class CsvUploadService {
         return new CsvPreviewResponseDto(token, headers, sampleRows, suggested, savedMapping.isPresent());
     }
 
-    // 2단계: 매핑 정보를 받아 실제 파싱 진행 (FileStorageService에서 호출)
     public Path resolveTempFile(String token) {
         Path path = Paths.get(TEMP_DIR, token + ".csv");
         if (!Files.exists(path)) {
@@ -93,10 +91,10 @@ public class CsvUploadService {
         mappingRepository.findByCompanyId(companyId)
                 .ifPresentOrElse(
                         existing -> existing.update(m.productIdColumn(), m.productNameColumn(),
-                                m.priceColumn(), m.categoryColumn(), m.descriptionColumn()),
+                                m.priceColumn(), m.categoryColumn(), m.descriptionColumn(), m.urlColumn()), // urlColumn 추가
                         () -> mappingRepository.save(CompanyCsvMapping.create(
                                 company, m.productIdColumn(), m.productNameColumn(),
-                                m.priceColumn(), m.categoryColumn(), m.descriptionColumn()))
+                                m.priceColumn(), m.categoryColumn(), m.descriptionColumn(), m.urlColumn())) // urlColumn 추가
                 );
     }
 
@@ -130,14 +128,14 @@ public class CsvUploadService {
                 StandardCharsets.UTF_8);
     }
 
-    // 헤더 이름 기반으로 합리적인 기본 매핑을 추측 (사용자가 고치기 쉽게)
     private CsvMappingDto suggestMapping(List<String> headers) {
         return new CsvMappingDto(
                 findBestMatch(headers, List.of("product_id", "상품id", "id")),
                 findBestMatch(headers, List.of("product_name", "상품명", "name", "title")),
                 findBestMatch(headers, List.of("price", "가격", "판매가")),
                 findBestMatch(headers, List.of("category", "category_leaf", "category_main", "카테고리")),
-                findBestMatch(headers, List.of("description", "상품설명", "설명"))
+                findBestMatch(headers, List.of("description", "상품설명", "설명")),
+                findBestMatch(headers, List.of("url", "product_url", "상품url", "상품링크", "링크")) // 추가
         );
     }
 
@@ -153,7 +151,8 @@ public class CsvUploadService {
     private CsvMappingDto toMappingDto(CompanyCsvMapping mapping) {
         return new CsvMappingDto(
                 mapping.getProductIdColumn(), mapping.getProductNameColumn(),
-                mapping.getPriceColumn(), mapping.getCategoryColumn(), mapping.getDescriptionColumn()
+                mapping.getPriceColumn(), mapping.getCategoryColumn(), mapping.getDescriptionColumn(),
+                mapping.getUrlColumn() // 추가
         );
     }
 }
