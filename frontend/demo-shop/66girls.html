@@ -457,8 +457,8 @@
                     <div class="product-info">
 
                         <span class="product-category">
-                            ${product.category_sub || "기타"}
-                            
+                            ${product.category_main || "기타"}
+                            ${product.category_sub ? " / " + product.category_sub : ""}
                         </span>
 
                         <h3>${product.product_name || "상품명 없음"}</h3>

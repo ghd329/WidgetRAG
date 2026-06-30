@@ -43,6 +43,9 @@ public class ProductItem {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "product_url", length = 500)
+    private String productUrl;
+
     @OneToMany(mappedBy = "productItem", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductItemCategory> categories = new ArrayList<>();
 
@@ -69,7 +72,7 @@ public class ProductItem {
 
     public static ProductItem createFromFile(Company company, Product sourceFile, Member createdBy,
                                              String externalProductId, String productName, int price,
-                                             String description) {
+                                             String description, String productUrl) {
         ProductItem item = new ProductItem();
         item.company = company;
         item.sourceFile = sourceFile;
@@ -78,16 +81,17 @@ public class ProductItem {
         item.productName = productName;
         item.price = price;
         item.description = description;
+        item.productUrl = normalizeUrl(productUrl); // 정규화 적용
         item.createdAt = LocalDateTime.now();
         return item;
     }
 
     public static ProductItem createManually(Company company, Member createdBy,
                                              String productName, int price, String description) {
-        return createFromFile(company, null, createdBy, null, productName, price, description);
+        // URL 없는 수동 등록이므로 null 전달
+        return createFromFile(company, null, createdBy, null, productName, price, description, null);
     }
 
-    // 카테고리 추가 - 이미 있으면 무시 (중복 방지)
     public void addCategory(String category) {
         if (category == null || category.isBlank()) return;
         boolean exists = this.categories.stream()
@@ -101,23 +105,34 @@ public class ProductItem {
         return this.categories.stream().map(ProductItemCategory::getCategory).toList();
     }
 
-    public void update(String productName, int price, String description, Member member) {
+    public void update(String productName, int price, String description, String productUrl, Member member) {
         this.productName = productName;
         this.price = price;
         this.description = description;
+        this.productUrl = normalizeUrl(productUrl); // 정규화 적용
         this.updatedBy = member;
         this.updatedAt = LocalDateTime.now();
     }
 
-    // 카테고리는 비교 대상에서 제외 (별도로 addCategory를 통해 누적되니까)
-    public boolean hasDifferentContent(String productName, int price, String description) {
+    public boolean hasDifferentContent(String productName, int price, String description, String productUrl) {
+        String normalizedUrl = normalizeUrl(productUrl);
         return !Objects.equals(this.productName, productName)
                 || this.price != price
-                || !Objects.equals(this.description, description);
+                || !Objects.equals(this.description, description)
+                || !Objects.equals(this.productUrl, normalizedUrl);
     }
 
     public void markAsDeleted(Member member) {
         this.deletedBy = member;
         this.deletedAt = LocalDateTime.now();
+    }
+    // URL 검증/정규화 - http(s) 스킴 없으면 null 처리 (깨진 링크 방지)
+    private static String normalizeUrl(String url) {
+        if (url == null || url.isBlank()) return null;
+        String trimmed = url.trim();
+        if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+            return null;
+        }
+        return trimmed;
     }
 }

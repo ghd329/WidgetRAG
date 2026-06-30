@@ -37,11 +37,16 @@ public class CompanyCsvMapping {
     @Column(name = "description_column", length = 100)
     private String descriptionColumn;
 
+    // 추가
+    @Column(name = "url_column", length = 100)
+    private String urlColumn;
+
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     public static CompanyCsvMapping create(Company company, String productIdColumn, String productNameColumn,
-                                           String priceColumn, String categoryColumn, String descriptionColumn) {
+                                           String priceColumn, String categoryColumn, String descriptionColumn,
+                                           String urlColumn) {
         CompanyCsvMapping mapping = new CompanyCsvMapping();
         mapping.company = company;
         mapping.productIdColumn = productIdColumn;
@@ -49,17 +54,19 @@ public class CompanyCsvMapping {
         mapping.priceColumn = priceColumn;
         mapping.categoryColumn = categoryColumn;
         mapping.descriptionColumn = descriptionColumn;
+        mapping.urlColumn = urlColumn;  // 추가
         mapping.updatedAt = LocalDateTime.now();
         return mapping;
     }
 
     public void update(String productIdColumn, String productNameColumn, String priceColumn,
-                       String categoryColumn, String descriptionColumn) {
+                       String categoryColumn, String descriptionColumn, String urlColumn) {
         this.productIdColumn = productIdColumn;
         this.productNameColumn = productNameColumn;
         this.priceColumn = priceColumn;
         this.categoryColumn = categoryColumn;
         this.descriptionColumn = descriptionColumn;
+        this.urlColumn = urlColumn;  // 추가
         this.updatedAt = LocalDateTime.now();
     }
 }

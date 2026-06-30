@@ -6,5 +6,6 @@ public record SearchedProductDto(
         Long productItemId,
         String productName,
         int price,
-        List<String> categories
+        List<String> categories,
+        String productUrl
 ) {}

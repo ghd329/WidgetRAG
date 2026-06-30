@@ -42,13 +42,11 @@ public class ProductItemService {
     private final ProductItemRepository productItemRepository;
     private final MemberRepository memberRepository;
     private final CompanyRepository companyRepository;
-    private final OpenSearchIndexService openSearchIndexService; // 추가
+    private final OpenSearchIndexService openSearchIndexService;
 
-    // CSV 업로드 시 호출 - 매핑 정보 기준으로 파싱, 같은 배치 내 중복 product_id도 안전하게 처리
     @Transactional
     public IncrementalUploadResultDto parseAndSaveFromCsv(Path csvPath, Company company, Product sourceFile,
-                                                        Member uploader, CsvMappingDto mapping) {
-
+                                                          Member uploader, CsvMappingDto mapping) {
         int created = 0;
         int updated = 0;
         int skipped = 0;
@@ -64,34 +62,17 @@ public class ProductItemService {
                     .parse(reader);
 
             for (CSVRecord record : records) {
-                String externalId = readColumn(record, mapping.productIdColumn());
-
+                String externalId  = readColumn(record, mapping.productIdColumn());
                 String productName = readColumn(record, mapping.productNameColumn());
-                if (productName == null || productName.isBlank()) {
-                    productName = readColumn(record, "product_name");
-                }
-
-                String priceRaw = readColumn(record, mapping.priceColumn());
-                if (priceRaw == null || priceRaw.isBlank()) {
-                    priceRaw = readColumn(record, "price");
-                }
-
-                String priceText = priceRaw == null ? "" : priceRaw.trim().replaceAll("[^0-9]", "");
-                int price = priceText.isBlank() ? 0 : Integer.parseInt(priceText);
-
-                String category = readColumn(record, mapping.categoryColumn());
-                if (category == null || category.isBlank()) {
-                    category = readColumn(record, "category_main");
-                }
-
+                String priceRaw    = readColumn(record, mapping.priceColumn());
+                int price = priceRaw == null ? 0 : Integer.parseInt(priceRaw.trim().replaceAll("[^0-9]", ""));
+                String category    = readColumn(record, mapping.categoryColumn());
                 String description = readColumn(record, mapping.descriptionColumn());
-                if (description == null || description.isBlank()) {
-                    description = readColumn(record, "description");
-                }
+                String productUrl  = readColumn(record, mapping.urlColumn()); // 추가
 
                 if (externalId == null || externalId.isBlank()) {
                     ProductItem item = ProductItem.createFromFile(
-                            company, sourceFile, uploader, null, productName, price, description);
+                            company, sourceFile, uploader, null, productName, price, description, productUrl); // productUrl 추가
                     if (!isMeaningless(category)) item.addCategory(category);
                     productItemRepository.save(item);
                     openSearchIndexService.indexProductItem(item);
@@ -109,17 +90,16 @@ public class ProductItemService {
                         item = existing.get();
                         if (!isMeaningless(category)) item.addCategory(category);
 
-                        if (item.hasDifferentContent(productName, price, description)) {
-                            item.update(productName, price, description, uploader);
+                        if (item.hasDifferentContent(productName, price, description, productUrl)) { // productUrl 추가
+                            item.update(productName, price, description, productUrl, uploader); // productUrl 추가
                             updated++;
                         } else {
                             skipped++;
                         }
-
                         openSearchIndexService.indexProductItem(item);
                     } else {
                         item = ProductItem.createFromFile(
-                                company, sourceFile, uploader, externalId, productName, price, description);
+                                company, sourceFile, uploader, externalId, productName, price, description, productUrl); // productUrl 추가
                         if (!isMeaningless(category)) item.addCategory(category);
                         productItemRepository.save(item);
                         openSearchIndexService.indexProductItem(item);
@@ -144,23 +124,8 @@ public class ProductItemService {
     }
 
     private String readColumn(CSVRecord record, String columnName) {
-        if (columnName == null || columnName.isBlank()) return null;
-
-        if (record.isMapped(columnName)) {
-            return record.get(columnName);
-        }
-
-        String lowerColumnName = columnName.toLowerCase();
-
-        for (String header : record.toMap().keySet()) {
-            if (header == null) continue;
-
-            if (header.trim().equalsIgnoreCase(lowerColumnName)) {
-                return record.get(header);
-            }
-        }
-
-        return null;
+        if (columnName == null || !record.isMapped(columnName)) return null;
+        return record.get(columnName);
     }
 
     private boolean isMeaningless(String category) {
@@ -199,7 +164,7 @@ public class ProductItemService {
             request.categories().forEach(item::addCategory);
         }
         productItemRepository.save(item);
-        openSearchIndexService.indexProductItem(item); // 추가
+        openSearchIndexService.indexProductItem(item);
         return toDto(item);
     }
 
@@ -215,11 +180,13 @@ public class ProductItemService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
 
-        item.update(request.productName(), request.price(), request.description(), member);
+        // request에 url 없으면 기존 url 유지
+        String productUrl = request.productUrl() != null ? request.productUrl() : item.getProductUrl();
+        item.update(request.productName(), request.price(), request.description(), productUrl, member); // productUrl 추가
         if (request.categories() != null) {
             request.categories().forEach(item::addCategory);
         }
-        openSearchIndexService.indexProductItem(item); // 추가
+        openSearchIndexService.indexProductItem(item);
         return toDto(item);
     }
 
@@ -236,23 +203,15 @@ public class ProductItemService {
                 .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
 
         item.markAsDeleted(member);
-        openSearchIndexService.deleteProductItem(item.getId()); // 추가
+        openSearchIndexService.deleteProductItem(item.getId());
     }
 
     private ProductItemResponseDto toDto(ProductItem item) {
         return new ProductItemResponseDto(
                 item.getId(), item.getProductName(), item.getPrice(),
-                item.getCategoryNames(), item.getDescription(), item.getCreatedAt(), item.getUpdatedAt()
+                item.getCategoryNames(), item.getDescription(),
+                item.getProductUrl(), // 추가
+                item.getCreatedAt(), item.getUpdatedAt()
         );
-    }
-
-    @Transactional
-    public void deleteBySourceFile(Product sourceFile, Member member) {
-        List<ProductItem> items = productItemRepository.findBySourceFileFileIdAndDeletedAtIsNull(sourceFile.getFileId());
-
-        for (ProductItem item : items) {
-            item.markAsDeleted(member);
-            openSearchIndexService.deleteProductItem(item.getId());
-        }
     }
 }

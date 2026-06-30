@@ -14,6 +14,7 @@ import org.opensearch.client.opensearch.indices.ExistsRequest;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +26,7 @@ public class OpenSearchIndexService {
     private static final int TOP_K = 3;
 
     private final OpenSearchClient client;
+    private final AiServerClient aiServerClient;
 
     public void ensureIndexExists() {
         try {
@@ -45,31 +47,45 @@ public class OpenSearchIndexService {
                 .properties("product_name", Property.of(p -> p.text(t -> t)))
                 .properties("price", Property.of(p -> p.integer(i -> i)))
                 .properties("categories", Property.of(p -> p.keyword(k -> k)))
+                .properties("description", Property.of(p -> p.text(t -> t)))
+                .properties("product_url", Property.of(p -> p.keyword(k -> k))) // 추가
                 .properties("chunk_text", Property.of(p -> p.text(t -> t)))
+                .properties("chunk_vector", Property.of(p -> p.knnVector(k -> k
+                        .dimension(1024)
+                        .method(meth -> meth
+                                .name("hnsw")
+                                .spaceType("cosinesimil")
+                                .engine("lucene")
+                        )
+                )))
         );
 
         CreateIndexRequest request = CreateIndexRequest.of(c -> c
                 .index(INDEX_NAME)
+                .settings(s -> s.knn(true))
                 .mappings(mapping)
         );
 
         client.indices().create(request);
     }
 
-    // 상품 1개 = 1청크 (모델정의서 3.2)
     public void indexProductItem(ProductItem item) {
         try {
             String chunkText = buildChunkText(item);
+            List<Float> vector = aiServerClient.embed(chunkText);
 
-            Map<String, Object> document = Map.of(
-                    "company_id", item.getCompany().getId(),
-                    "client_code", item.getCompany().getClientCode(),
-                    "product_item_id", item.getId(),
-                    "product_name", item.getProductName(),
-                    "price", item.getPrice(),
-                    "categories", item.getCategoryNames(),
-                    "chunk_text", chunkText
-            );
+            // Map.of()는 null 값 허용 안 하므로 HashMap 사용
+            Map<String, Object> document = new HashMap<>();
+            document.put("company_id", item.getCompany().getId());
+            document.put("client_code", item.getCompany().getClientCode());
+            document.put("product_item_id", item.getId());
+            document.put("product_name", item.getProductName());
+            document.put("price", item.getPrice());
+            document.put("categories", item.getCategoryNames());
+            document.put("description", item.getDescription());
+            document.put("product_url", item.getProductUrl()); // null 허용 — Map.of() 대신 HashMap 쓰는 이유
+            document.put("chunk_text", chunkText);
+            document.put("chunk_vector", vector);
 
             client.index(i -> i
                     .index(INDEX_NAME)
@@ -89,7 +105,6 @@ public class OpenSearchIndexService {
         }
     }
 
-    // 모델정의서 3.2 청킹 전략 - 상품명 │ 가격 │ 카테고리 │ 설명
     private String buildChunkText(ProductItem item) {
         String categories = String.join(", ", item.getCategoryNames());
         return String.format("상품명: %s │ 가격: %,d원 │ 카테고리: %s │ 설명: %s",
@@ -98,22 +113,24 @@ public class OpenSearchIndexService {
 
     public List<SearchedProductDto> search(String clientCode, String question) {
         try {
+            List<Float> queryVector = aiServerClient.embed(question);
+
             Query clientCodeFilter = Query.of(q -> q
                     .term(t -> t.field("client_code").value(v -> v.stringValue(clientCode)))
             );
 
-            Query textMatch = Query.of(q -> q
-                    .match(m -> m
-                            .field("chunk_text")
-                            .query(v -> v.stringValue(question))
-                            .minimumShouldMatch("60%") // 질문 단어의 60% 이상 매칭돼야 함
+            Query knnQuery = Query.of(q -> q
+                    .knn(k -> k
+                            .field("chunk_vector")
+                            .vector(queryVector)
+                            .k(TOP_K)
                     )
             );
 
             Query combined = Query.of(q -> q
                     .bool(b -> b
                             .filter(clientCodeFilter)
-                            .must(textMatch)
+                            .must(knnQuery)
                     )
             );
 
@@ -121,7 +138,6 @@ public class OpenSearchIndexService {
                     .index(INDEX_NAME)
                     .query(combined)
                     .size(TOP_K)
-                    .minScore(0.3) // 보조 안전망, 낮은 값
             );
 
             SearchResponse<Map> response = client.search(request, Map.class);
@@ -133,7 +149,8 @@ public class OpenSearchIndexService {
                                 ((Number) source.get("product_item_id")).longValue(),
                                 (String) source.get("product_name"),
                                 ((Number) source.get("price")).intValue(),
-                                (List<String>) source.get("categories")
+                                (List<String>) source.get("categories"),
+                                (String) source.get("product_url") // 추가
                         );
                     })
                     .toList();
