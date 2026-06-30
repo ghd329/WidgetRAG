@@ -151,6 +151,14 @@ public class ProductItemService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<ProductItemResponseDto> getListByClientCode(String clientCode) {
+        return productItemRepository.findByCompanyClientCodeAndDeletedAtIsNull(clientCode)
+                .stream()
+                .map(this::toDto)
+                .toList();
+    }
+
     @Transactional
     public ProductItemResponseDto create(ProductItemCreateRequestDto request, Long companyId, Long memberId) {
         Company company = companyRepository.findById(companyId)
@@ -188,6 +196,15 @@ public class ProductItemService {
         }
         openSearchIndexService.indexProductItem(item);
         return toDto(item);
+    }
+
+    @Transactional
+    public void deleteByProduct(Product product, Member member) {
+        List<ProductItem> items = productItemRepository.findBySourceFileAndDeletedAtIsNull(product);
+        for (ProductItem item : items) {
+            item.markAsDeleted(member);
+            openSearchIndexService.deleteProductItem(item.getId());
+        }
     }
 
     @Transactional
