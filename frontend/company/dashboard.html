@@ -149,7 +149,7 @@
                 const products = await fetchJson(`${BACKEND_BASE}/api/product-items`);
                 const uploads = await fetchJson(`${BACKEND_BASE}/api/products`);
 
-                const questions = JSON.parse(localStorage.getItem("customerQuestions")) || [];
+                 const questions = await fetchJson(`${BACKEND_BASE}/api/chat-logs`);
 
                 document.getElementById("productCount").innerText = products.length + "개";
                 document.getElementById("questionCount").innerText = questions.length + "개";
@@ -212,8 +212,8 @@
 
                 row.innerHTML = `
                     <td>${item.question}</td>
-                    <td>${item.date}</td>
-                    <td>${item.status || "답변완료"}</td>
+                    <td>${new Date(item.createdAt).toLocaleString("ko-KR")}</td>
+                    <td>${item.isFallback ? "Fallback" : "답변완료"}</td>
                 `;
 
                 recentQuestionBody.appendChild(row);
