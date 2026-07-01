@@ -108,6 +108,29 @@
         background: white;
         border-radius: 8px;
     }
+
+    /* ▼▼▼ 로딩 스피너 추가 ▼▼▼ */
+    .btn-spinner {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(255,255,255,.5);
+        border-top-color: white;
+        border-radius: 50%;
+        margin-right: 8px;
+        vertical-align: middle;
+        animation: btnSpin .7s linear infinite;
+    }
+
+    @keyframes btnSpin {
+        to { transform: rotate(360deg); }
+    }
+
+    button:disabled {
+        opacity: .65;
+        cursor: not-allowed;
+    }
+    /* ▲▲▲ 로딩 스피너 추가 ▲▲▲ */
     </style>
 </head>
 
@@ -172,7 +195,7 @@
 
                 <br>
 
-                <button class="primary-btn" onclick="uploadFile()">
+                <button class="primary-btn" id="uploadBtn" onclick="uploadFile()">
                     업로드
                 </button>
             </div>
@@ -228,6 +251,13 @@
         const formData = new FormData();
         formData.append("file", file);
 
+        // ▼▼▼ 로딩 상태 시작 ▼▼▼
+        const uploadBtn = document.getElementById("uploadBtn");
+        const originalText = uploadBtn.innerHTML;
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = `<span class="btn-spinner"></span>파일 분석 중...`;
+        // ▲▲▲ 로딩 상태 시작 ▲▲▲
+
         try {
             const previewRes = await fetch(`${BACKEND_BASE}/api/products/preview`, {
                 method: "POST",
@@ -247,6 +277,11 @@
         } catch (error) {
             console.error(error);
             alert("미리보기 중 오류가 발생했습니다.\n" + error.message);
+        } finally {
+            // ▼▼▼ 로딩 상태 종료 (성공/실패 상관없이 항상 복구) ▼▼▼
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = originalText;
+            // ▲▲▲ 로딩 상태 종료 ▲▲▲
         }
     }
 
@@ -376,6 +411,7 @@
                         <option value="priceColumn">가격</option>
                         <option value="categoryColumn">카테고리</option>
                         <option value="descriptionColumn">설명</option>
+                        <option value="urlColumn">URL</option>
                     </select>
                 </div>
             `;
@@ -428,6 +464,7 @@
             if (suggested.priceColumn === header) select.value = "priceColumn";
             if (suggested.categoryColumn === header) select.value = "categoryColumn";
             if (suggested.descriptionColumn === header) select.value = "descriptionColumn";
+            if (suggested.urlColumn === header) select.value = "urlColumn";
         });
     }
 
@@ -447,7 +484,8 @@
             productNameColumn: null,
             priceColumn: null,
             categoryColumn: null,
-            descriptionColumn: null
+            descriptionColumn: null,
+            urlColumn: null
         };
 
         document.querySelectorAll(".mapping-select").forEach(select => {
@@ -470,6 +508,16 @@
             mapping: mapping,
             saveAsDefault: document.getElementById("saveAsDefault").checked
         };
+
+        // ▼▼▼ 로딩 상태 시작 (모달 안의 버튼들 전부 잠금) ▼▼▼
+        const confirmBtn = document.querySelector(".mapping-actions .primary-btn");
+        const cancelBtn = document.querySelector(".mapping-actions .cancel-btn");
+        const originalText = confirmBtn.innerHTML;
+
+        confirmBtn.disabled = true;
+        cancelBtn.disabled = true;
+        confirmBtn.innerHTML = `<span class="btn-spinner"></span>업로드 중...`;
+        // ▲▲▲ 로딩 상태 시작 ▲▲▲
 
         try {
             const confirmRes = await fetch(`${BACKEND_BASE}/api/products/confirm`, {
@@ -498,6 +546,12 @@
         } catch (error) {
             console.error(error);
             alert("업로드 확정 실패\n" + error.message);
+
+            // ▼▼▼ 실패 시에만 버튼 복구 (성공 시엔 모달 자체가 사라지므로 불필요) ▼▼▼
+            confirmBtn.disabled = false;
+            cancelBtn.disabled = false;
+            confirmBtn.innerHTML = originalText;
+            // ▲▲▲ 실패 시에만 버튼 복구 ▲▲▲
         }
     }
     </script>

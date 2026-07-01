@@ -321,6 +321,65 @@ const WIDGET_BACKEND_BASE =
             font-weight: 900;
             cursor: pointer;
         }
+
+        /* ▼▼▼ 상품 카드 스타일 추가 ▼▼▼ */
+        .product-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .product-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: white;
+            border: 1px solid #ede9fe;
+            border-radius: 16px;
+            padding: 12px;
+            text-decoration: none;
+            color: inherit;
+            box-shadow: 0 6px 18px rgba(79,70,229,.07);
+            transition: box-shadow .15s, transform .15s;
+        }
+
+        a.product-card:hover {
+            box-shadow: 0 10px 26px rgba(79,70,229,.18);
+            transform: translateY(-1px);
+            cursor: pointer;
+        }
+
+        .product-card-img img {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 12px;
+            background: #f3f4f6;
+            flex-shrink: 0;
+        }
+
+        .product-card-info {
+            min-width: 0;
+        }
+
+        .product-card-name {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: #1e1b4b;
+            margin: 0 0 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .product-card-price {
+            font-size: 13.5px;
+            font-weight: 800;
+            color: #4f46e5;
+            margin: 0;
+        }
+        /* ▲▲▲ 상품 카드 스타일 추가 ▲▲▲ */
     `;
     document.head.appendChild(style);
 
@@ -455,6 +514,47 @@ function appendChatbotMessage(type, text) {
     messages.scrollTop = messages.scrollHeight;
 }
 
+// ▼▼▼ 상품 카드 렌더링 함수 추가 ▼▼▼
+function appendProductCards(products) {
+    if (!products || products.length === 0) return;
+
+    const messages = document.getElementById("chatbotMessages");
+    const wrap = document.createElement("div");
+    wrap.className = "product-cards";
+
+    products.forEach(p => {
+        const hasUrl = !!p.productUrl;
+        const card = document.createElement(hasUrl ? "a" : "div");
+        card.className = "product-card";
+
+        if (hasUrl) {
+            card.href = p.productUrl;
+            card.target = "_blank";
+            card.rel = "noopener noreferrer";
+        }
+
+        const priceText = (typeof p.price === "number")
+            ? p.price.toLocaleString() + "원"
+            : "";
+
+        card.innerHTML = `
+            <div class="product-card-img">
+                <img src="https://via.placeholder.com/100x100.png?text=Product" alt="${p.productName ?? ""}">
+            </div>
+            <div class="product-card-info">
+                <p class="product-card-name">${p.productName ?? ""}</p>
+                <p class="product-card-price">${priceText}</p>
+            </div>
+        `;
+
+        wrap.appendChild(card);
+    });
+
+    messages.appendChild(wrap);
+    messages.scrollTop = messages.scrollHeight;
+}
+// ▲▲▲ 상품 카드 렌더링 함수 추가 ▲▲▲
+
 async function sendChatbotMessage() {
     const input = document.getElementById("chatbotInput");
     const question = input.value.trim();
@@ -504,6 +604,10 @@ async function sendChatbotMessage() {
 
         messages.lastChild.remove();
         appendChatbotMessage("bot", answer);
+
+        // ▼▼▼ 추천 상품 카드 표시 추가 ▼▼▼
+        appendProductCards(result.recommendedProducts);
+        // ▲▲▲ 추천 상품 카드 표시 추가 ▲▲▲
 
     } catch (error) {
         console.error(error);
