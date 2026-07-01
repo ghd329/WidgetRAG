@@ -96,13 +96,59 @@
             loadCustomerQuestions();
         }
 
-        function loadCustomerQuestions() {
+        /**
+         * 로그인한 회사(companyId)의 고객 질문/답변 기록을 백엔드(chat_log 테이블)에서 조회하여 표시한다.
+         * 기존에는 localStorage("customerQuestions")를 사용했으나,
+         * 브라우저(도메인) 전체에서 공유되어 여러 회사의 기록이 섞이는 문제가 있어 DB 조회 방식으로 변경했다.
+         */
+        async function loadCustomerQuestions() {
             const questionListBody = document.getElementById("questionListBody");
-            const questionList = JSON.parse(localStorage.getItem("customerQuestions")) || [];
+
+            questionListBody.innerHTML = `
+                <tr>
+                    <td colspan="5" style="text-align:center; color:#777;">
+                        질문 목록을 불러오는 중입니다.
+                    </td>
+                </tr>
+            `;
+
+            try {
+                const response = await fetch(`${BACKEND_BASE}/api/chat-logs`, {
+                    method: "GET",
+                    credentials: "include"
+                });
+
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+
+                const questionList = await response.json();
+
+                renderQuestionList(questionList);
+
+            } catch (error) {
+                console.error(error);
+
+                questionListBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#777;">
+                            질문 목록을 불러오지 못했습니다. 로그인 상태 또는 백엔드 API를 확인해주세요.
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        /**
+         * 질문 목록 배열을 받아 테이블에 렌더링한다.
+         * 각 행의 삭제 버튼에는 localStorage 배열 인덱스 대신 실제 DB의 chat_log id를 사용한다.
+         */
+        function renderQuestionList(questionList) {
+            const questionListBody = document.getElementById("questionListBody");
 
             questionListBody.innerHTML = "";
 
-            if (questionList.length === 0) {
+            if (!questionList || questionList.length === 0) {
                 questionListBody.innerHTML = `
                     <tr>
                         <td colspan="5" style="text-align:center; color:#777;">
@@ -113,16 +159,21 @@
                 return;
             }
 
-            questionList.forEach((item, index) => {
+            questionList.forEach(item => {
                 const row = document.createElement("tr");
+
+                const dateText = item.createdAt
+                    ? new Date(item.createdAt).toLocaleString("ko-KR")
+                    : "-";
+                const statusText = item.isFallback ? "Fallback" : "답변 완료";
 
                 row.innerHTML = `
                     <td>${item.question}</td>
-                    <td>${item.answer}</td>
-                    <td>${item.date}</td>
-                    <td>${item.status}</td>
+                    <td>${item.answer ?? "-"}</td>
+                    <td>${dateText}</td>
+                    <td>${statusText}</td>
                     <td>
-                        <button class="delete" onclick="deleteQuestion(${index})">
+                        <button class="delete" onclick="deleteQuestion(${item.id})">
                             삭제
                         </button>
                     </td>
@@ -132,16 +183,30 @@
             });
         }
 
-        function deleteQuestion(index) {
+        /**
+         * 질문 기록을 삭제한다.
+         * TODO: 백엔드에 DELETE /api/chat-logs/{id} 엔드포인트 추가 필요.
+         * 아직 삭제 API가 없어서, 추가되기 전까지는 삭제가 동작하지 않는다.
+         */
+        async function deleteQuestion(chatLogId) {
             if (!confirm("이 질문 내역을 삭제하시겠습니까?")) return;
 
-            const questionList = JSON.parse(localStorage.getItem("customerQuestions")) || [];
+            try {
+                const response = await fetch(`${BACKEND_BASE}/api/chat-logs/${chatLogId}`, {
+                    method: "DELETE",
+                    credentials: "include"
+                });
 
-            questionList.splice(index, 1);
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
 
-            localStorage.setItem("customerQuestions", JSON.stringify(questionList));
+                await loadCustomerQuestions();
 
-            loadCustomerQuestions();
+            } catch (error) {
+                console.error(error);
+                alert("삭제 중 오류가 발생했습니다.\n" + error.message);
+            }
         }
     </script>
 </body>

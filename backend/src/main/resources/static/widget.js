@@ -322,7 +322,7 @@ const WIDGET_BACKEND_BASE =
             cursor: pointer;
         }
 
-        /* ▼▼▼ 상품 카드 스타일 추가 ▼▼▼ */
+        /* 상품 추천 카드 */
         .product-cards {
             display: flex;
             flex-direction: column;
@@ -379,7 +379,6 @@ const WIDGET_BACKEND_BASE =
             color: #4f46e5;
             margin: 0;
         }
-        /* ▲▲▲ 상품 카드 스타일 추가 ▲▲▲ */
     `;
     document.head.appendChild(style);
 
@@ -456,16 +455,14 @@ const WIDGET_BACKEND_BASE =
     const sendBtn = document.getElementById("chatbotSendBtn");
     const input = document.getElementById("chatbotInput");
 
-    const tooltip=document.getElementById("chatbotTooltip");
-    const tooltipClose=document.getElementById("tooltipClose");
+    const tooltip = document.getElementById("chatbotTooltip");
+    const tooltipClose = document.getElementById("tooltipClose");
 
-    bubble.onclick=function(){
-
-        chatbot.style.display="flex";
-        bubble.style.display="none";
-        tooltip.style.display="none";
-
-    }
+    bubble.onclick = function () {
+        chatbot.style.display = "flex";
+        bubble.style.display = "none";
+        tooltip.style.display = "none";
+    };
 
     tooltip.onclick = function () {
         chatbot.style.display = "flex";
@@ -503,6 +500,9 @@ const WIDGET_BACKEND_BASE =
 
 })();
 
+/**
+ * 채팅창에 말풍선(사용자/봇) 메시지를 추가한다.
+ */
 function appendChatbotMessage(type, text) {
     const messages = document.getElementById("chatbotMessages");
     const div = document.createElement("div");
@@ -514,7 +514,11 @@ function appendChatbotMessage(type, text) {
     messages.scrollTop = messages.scrollHeight;
 }
 
-// ▼▼▼ 상품 카드 렌더링 함수 추가 ▼▼▼
+/**
+ * 추천 상품 목록을 카드 형태로 채팅창에 추가한다.
+ * productUrl이 있는 상품은 <a> 태그로 렌더링되어 클릭 시 새 탭에서 상품 페이지로 이동하고,
+ * productUrl이 없는 상품(fallback 데이터 등)은 클릭 불가능한 <div>로 렌더링된다.
+ */
 function appendProductCards(products) {
     if (!products || products.length === 0) return;
 
@@ -537,6 +541,7 @@ function appendProductCards(products) {
             ? p.price.toLocaleString() + "원"
             : "";
 
+        // TODO: 상품 이미지 URL 매핑 추가되면 placeholder 대신 실제 이미지로 교체
         card.innerHTML = `
             <div class="product-card-img">
                 <img src="https://via.placeholder.com/100x100.png?text=Product" alt="${p.productName ?? ""}">
@@ -553,8 +558,12 @@ function appendProductCards(products) {
     messages.appendChild(wrap);
     messages.scrollTop = messages.scrollHeight;
 }
-// ▲▲▲ 상품 카드 렌더링 함수 추가 ▲▲▲
 
+/**
+ * 사용자 질문을 백엔드로 전송하고, 답변과 추천 상품 카드를 채팅창에 표시한다.
+ * 질문/답변 기록은 백엔드(ChatService)가 회사(clientCode)별로 DB에 자동 저장하므로,
+ * 프론트에서 별도로 저장하지 않는다.
+ */
 async function sendChatbotMessage() {
     const input = document.getElementById("chatbotInput");
     const question = input.value.trim();
@@ -566,6 +575,8 @@ async function sendChatbotMessage() {
 
     appendChatbotMessage("bot", "추천 상품을 찾는 중입니다...");
 
+    const messages = document.getElementById("chatbotMessages");
+
     try {
         const response = await fetch(`${WIDGET_BACKEND_BASE}/api/chat`, {
             method: "POST",
@@ -576,58 +587,19 @@ async function sendChatbotMessage() {
             })
         });
 
-        const messages = document.getElementById("chatbotMessages");
-
         if (!response.ok) throw new Error(await response.text());
 
         const result = await response.json();
-
         const answer = result.answer || "추천 답변을 찾지 못했습니다.";
-
-        // 질문/답변 관리자 페이지에 저장
-        const questionList =
-            JSON.parse(localStorage.getItem("customerQuestions")) || [];
-
-        questionList.unshift({
-            question: question,
-            answer: result.answer || "",
-            date: new Date().toLocaleString("ko-KR"),
-            status: "답변 완료"
-        });
-
-        localStorage.setItem(
-            "customerQuestions",
-            JSON.stringify(questionList)
-        );
-
-        console.log("customerQuestions 저장됨:", questionList);
 
         messages.lastChild.remove();
         appendChatbotMessage("bot", answer);
-
-        // ▼▼▼ 추천 상품 카드 표시 추가 ▼▼▼
         appendProductCards(result.recommendedProducts);
-        // ▲▲▲ 추천 상품 카드 표시 추가 ▲▲▲
 
     } catch (error) {
         console.error(error);
 
-        const messages = document.getElementById("chatbotMessages");
         messages.lastChild.remove();
-
-        const fallbackAnswer = "답변 생성 중 오류가 발생했습니다.";
-
-        const questionList = JSON.parse(localStorage.getItem("customerQuestions")) || [];
-
-        questionList.unshift({
-            question: question,
-            answer: fallbackAnswer,
-            date: new Date().toLocaleString("ko-KR"),
-            status: "오류"
-        });
-
-        localStorage.setItem("customerQuestions", JSON.stringify(questionList));
-
         appendChatbotMessage("bot", "답변을 불러오지 못했습니다. 백엔드 API를 확인해주세요.");
     }
 }
