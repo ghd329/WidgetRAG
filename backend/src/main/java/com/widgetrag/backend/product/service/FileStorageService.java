@@ -142,7 +142,9 @@ public class FileStorageService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
 
-        String originalFilename = "uploaded.csv"; // 실제로는 preview 단계에서 원본 파일명도 같이 넘겨받는 게 좋음 (보완 필요)
+        String originalFilename = request.originalFilename() != null
+            ? request.originalFilename()
+            : "uploaded.csv"; // 실제로는 preview 단계에서 원본 파일명도 같이 넘겨받는 게 좋음 (보완 필요)
         Product product = Product.create(company, member, originalFilename, "csv", "");
         productRepository.save(product);
 
