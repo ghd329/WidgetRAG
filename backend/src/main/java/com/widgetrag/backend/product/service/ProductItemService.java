@@ -44,12 +44,22 @@ public class ProductItemService {
     private final CompanyRepository companyRepository;
     private final OpenSearchIndexService openSearchIndexService;
 
+    /**
+     * CSV를 파싱하여 상품을 저장하고, 행 단위로 CSV 파싱/DB 저장 구간과
+     * 임베딩/OpenSearch 색인 구간의 소요 시간을 측정하여 로그로 출력한다.
+     * (성능 병목 확인용 임시 계측 코드 - 확인 후 제거 또는 로거로 전환 예정)
+     */
     @Transactional
     public IncrementalUploadResultDto parseAndSaveFromCsv(Path csvPath, Company company, Product sourceFile,
                                                           Member uploader, CsvMappingDto mapping) {
         int created = 0;
         int updated = 0;
         int skipped = 0;
+        int rowCount = 0;
+
+        long parseAndSaveTimeMs = 0; // CSV 파싱 + DB 저장 누적 시간
+        long indexTimeMs = 0;        // 임베딩 + OpenSearch 색인 누적 시간
+        long totalStart = System.currentTimeMillis();
 
         Map<String, ProductItem> processedInThisBatch = new HashMap<>();
 
@@ -62,20 +72,29 @@ public class ProductItemService {
                     .parse(reader);
 
             for (CSVRecord record : records) {
+                rowCount++;
+                long rowStart = System.currentTimeMillis();
+
                 String externalId  = readColumn(record, mapping.productIdColumn());
                 String productName = readColumn(record, mapping.productNameColumn());
                 String priceRaw    = readColumn(record, mapping.priceColumn());
                 int price = priceRaw == null ? 0 : Integer.parseInt(priceRaw.trim().replaceAll("[^0-9]", ""));
                 String category    = readColumn(record, mapping.categoryColumn());
                 String description = readColumn(record, mapping.descriptionColumn());
-                String productUrl  = readColumn(record, mapping.urlColumn()); // 추가
+                String productUrl  = readColumn(record, mapping.urlColumn());
 
                 if (externalId == null || externalId.isBlank()) {
                     ProductItem item = ProductItem.createFromFile(
-                            company, sourceFile, uploader, null, productName, price, description, productUrl); // productUrl 추가
+                            company, sourceFile, uploader, null, productName, price, description, productUrl);
                     if (!isMeaningless(category)) item.addCategory(category);
                     productItemRepository.save(item);
+
+                    long afterSave = System.currentTimeMillis();
+                    parseAndSaveTimeMs += (afterSave - rowStart);
+
                     openSearchIndexService.indexProductItem(item);
+                    indexTimeMs += (System.currentTimeMillis() - afterSave);
+
                     created++;
                     continue;
                 }
@@ -90,19 +109,30 @@ public class ProductItemService {
                         item = existing.get();
                         if (!isMeaningless(category)) item.addCategory(category);
 
-                        if (item.hasDifferentContent(productName, price, description, productUrl)) { // productUrl 추가
-                            item.update(productName, price, description, productUrl, uploader); // productUrl 추가
+                        if (item.hasDifferentContent(productName, price, description, productUrl)) {
+                            item.update(productName, price, description, productUrl, uploader);
                             updated++;
                         } else {
                             skipped++;
                         }
+
+                        long afterSave = System.currentTimeMillis();
+                        parseAndSaveTimeMs += (afterSave - rowStart);
+
                         openSearchIndexService.indexProductItem(item);
+                        indexTimeMs += (System.currentTimeMillis() - afterSave);
                     } else {
                         item = ProductItem.createFromFile(
-                                company, sourceFile, uploader, externalId, productName, price, description, productUrl); // productUrl 추가
+                                company, sourceFile, uploader, externalId, productName, price, description, productUrl);
                         if (!isMeaningless(category)) item.addCategory(category);
                         productItemRepository.save(item);
+
+                        long afterSave = System.currentTimeMillis();
+                        parseAndSaveTimeMs += (afterSave - rowStart);
+
                         openSearchIndexService.indexProductItem(item);
+                        indexTimeMs += (System.currentTimeMillis() - afterSave);
+
                         created++;
                     }
 
@@ -111,7 +141,14 @@ public class ProductItemService {
                 } else {
                     if (!isMeaningless(category)) {
                         item.addCategory(category);
+
+                        long afterSave = System.currentTimeMillis();
+                        parseAndSaveTimeMs += (afterSave - rowStart);
+
                         openSearchIndexService.indexProductItem(item);
+                        indexTimeMs += (System.currentTimeMillis() - afterSave);
+                    } else {
+                        parseAndSaveTimeMs += (System.currentTimeMillis() - rowStart);
                     }
                     skipped++;
                 }
@@ -119,6 +156,15 @@ public class ProductItemService {
         } catch (IOException e) {
             throw new RuntimeException("CSV 파싱 중 오류가 발생했습니다.", e);
         }
+
+        long totalTimeMs = System.currentTimeMillis() - totalStart;
+        System.out.println("========== 업로드 소요시간 분석 ==========");
+        System.out.println("총 처리 행 수            : " + rowCount + "건");
+        System.out.println("CSV 파싱 + DB 저장 총합   : " + parseAndSaveTimeMs + "ms");
+        System.out.println("임베딩 + OpenSearch 색인 총합 : " + indexTimeMs + "ms");
+        System.out.println("전체 소요 시간            : " + totalTimeMs + "ms");
+        System.out.println("생성 " + created + "건 / 수정 " + updated + "건 / 스킵 " + skipped + "건");
+        System.out.println("==========================================");
 
         return new IncrementalUploadResultDto(created, updated, skipped);
     }
@@ -188,9 +234,9 @@ public class ProductItemService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
 
-        // request에 url 없으면 기존 url 유지
+        // request에 url이 없으면 기존 url 유지
         String productUrl = request.productUrl() != null ? request.productUrl() : item.getProductUrl();
-        item.update(request.productName(), request.price(), request.description(), productUrl, member); // productUrl 추가
+        item.update(request.productName(), request.price(), request.description(), productUrl, member);
         if (request.categories() != null) {
             request.categories().forEach(item::addCategory);
         }
@@ -227,7 +273,7 @@ public class ProductItemService {
         return new ProductItemResponseDto(
                 item.getId(), item.getProductName(), item.getPrice(),
                 item.getCategoryNames(), item.getDescription(),
-                item.getProductUrl(), // 추가
+                item.getProductUrl(),
                 item.getCreatedAt(), item.getUpdatedAt()
         );
     }
