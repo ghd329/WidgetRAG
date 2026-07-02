@@ -20,34 +20,43 @@ import org.apache.commons.csv.CSVRecord;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PushbackInputStream;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class ProductItemService {
 
     private static final Set<String> MEANINGLESS_CATEGORIES = Set.of("전체", "ALL", "all", "");
+    private static final int EXISTING_ITEM_LOOKUP_BATCH_SIZE = 1000;
 
     private final ProductItemRepository productItemRepository;
     private final MemberRepository memberRepository;
     private final CompanyRepository companyRepository;
     private final OpenSearchIndexService openSearchIndexService;
 
+    private record CsvProductRow(String externalId, String productName, int price,
+                                 String category, String description, String productUrl) {
+    }
+
     /**
-     * CSV를 파싱하여 상품을 저장하고, 행 단위로 CSV 파싱/DB 저장 구간과
-     * 임베딩/OpenSearch 색인 구간의 소요 시간을 측정하여 로그로 출력한다.
-     * (성능 병목 확인용 임시 계측 코드 - 확인 후 제거 또는 로거로 전환 예정)
+     * CSV를 파싱하여 상품을 배치 저장/색인한다.
+     * 각 단계(CSV 파싱, 기존 상품 조회, DB 저장, OpenSearch 색인)의 소요 시간을
+     * 로그로 출력한다. (성능 확인용 임시 계측 코드 - 확인 후 제거 예정)
      */
     @Transactional
     public IncrementalUploadResultDto parseAndSaveFromCsv(Path csvPath, Company company, Product sourceFile,
@@ -55,13 +64,11 @@ public class ProductItemService {
         int created = 0;
         int updated = 0;
         int skipped = 0;
-        int rowCount = 0;
 
-        long parseAndSaveTimeMs = 0; // CSV 파싱 + DB 저장 누적 시간
-        long indexTimeMs = 0;        // 임베딩 + OpenSearch 색인 누적 시간
         long totalStart = System.currentTimeMillis();
 
-        Map<String, ProductItem> processedInThisBatch = new HashMap<>();
+        List<CsvProductRow> rows = new ArrayList<>();
+        Set<String> externalIds = new LinkedHashSet<>();
 
         try (Reader reader = createBomAwareReader(csvPath)) {
             Iterable<CSVRecord> records = CSVFormat.DEFAULT.builder()
@@ -72,101 +79,134 @@ public class ProductItemService {
                     .parse(reader);
 
             for (CSVRecord record : records) {
-                rowCount++;
-                long rowStart = System.currentTimeMillis();
-
-                String externalId  = readColumn(record, mapping.productIdColumn());
+                String externalId = readColumn(record, mapping.productIdColumn());
                 String productName = readColumn(record, mapping.productNameColumn());
-                String priceRaw    = readColumn(record, mapping.priceColumn());
-                int price = priceRaw == null ? 0 : Integer.parseInt(priceRaw.trim().replaceAll("[^0-9]", ""));
-                String category    = readColumn(record, mapping.categoryColumn());
+                int price = parsePrice(readColumn(record, mapping.priceColumn()));
+                String category = readColumn(record, mapping.categoryColumn());
                 String description = readColumn(record, mapping.descriptionColumn());
-                String productUrl  = readColumn(record, mapping.urlColumn());
+                String productUrl = readColumn(record, mapping.urlColumn());
 
-                if (externalId == null || externalId.isBlank()) {
-                    ProductItem item = ProductItem.createFromFile(
-                            company, sourceFile, uploader, null, productName, price, description, productUrl);
-                    if (!isMeaningless(category)) item.addCategory(category);
-                    productItemRepository.save(item);
-
-                    long afterSave = System.currentTimeMillis();
-                    parseAndSaveTimeMs += (afterSave - rowStart);
-
-                    openSearchIndexService.indexProductItem(item);
-                    indexTimeMs += (System.currentTimeMillis() - afterSave);
-
-                    created++;
-                    continue;
-                }
-
-                ProductItem item = processedInThisBatch.get(externalId);
-
-                if (item == null) {
-                    Optional<ProductItem> existing = productItemRepository
-                            .findByCompanyIdAndExternalProductIdAndDeletedAtIsNull(company.getId(), externalId);
-
-                    if (existing.isPresent()) {
-                        item = existing.get();
-                        if (!isMeaningless(category)) item.addCategory(category);
-
-                        if (item.hasDifferentContent(productName, price, description, productUrl)) {
-                            item.update(productName, price, description, productUrl, uploader);
-                            updated++;
-                        } else {
-                            skipped++;
-                        }
-
-                        long afterSave = System.currentTimeMillis();
-                        parseAndSaveTimeMs += (afterSave - rowStart);
-
-                        openSearchIndexService.indexProductItem(item);
-                        indexTimeMs += (System.currentTimeMillis() - afterSave);
-                    } else {
-                        item = ProductItem.createFromFile(
-                                company, sourceFile, uploader, externalId, productName, price, description, productUrl);
-                        if (!isMeaningless(category)) item.addCategory(category);
-                        productItemRepository.save(item);
-
-                        long afterSave = System.currentTimeMillis();
-                        parseAndSaveTimeMs += (afterSave - rowStart);
-
-                        openSearchIndexService.indexProductItem(item);
-                        indexTimeMs += (System.currentTimeMillis() - afterSave);
-
-                        created++;
-                    }
-
-                    processedInThisBatch.put(externalId, item);
-
-                } else {
-                    if (!isMeaningless(category)) {
-                        item.addCategory(category);
-
-                        long afterSave = System.currentTimeMillis();
-                        parseAndSaveTimeMs += (afterSave - rowStart);
-
-                        openSearchIndexService.indexProductItem(item);
-                        indexTimeMs += (System.currentTimeMillis() - afterSave);
-                    } else {
-                        parseAndSaveTimeMs += (System.currentTimeMillis() - rowStart);
-                    }
-                    skipped++;
+                rows.add(new CsvProductRow(externalId, productName, price, category, description, productUrl));
+                if (externalId != null && !externalId.isBlank()) {
+                    externalIds.add(externalId);
                 }
             }
         } catch (IOException e) {
-            throw new RuntimeException("CSV 파싱 중 오류가 발생했습니다.", e);
+            throw new RuntimeException("CSV parsing failed.", e);
         }
 
-        long totalTimeMs = System.currentTimeMillis() - totalStart;
+        long afterParse = System.currentTimeMillis();
+
+        Map<String, ProductItem> existingItems = findExistingItems(company.getId(), externalIds);
+
+        long afterLookup = System.currentTimeMillis();
+
+        Map<String, ProductItem> processedInThisBatch = new HashMap<>();
+        List<ProductItem> itemsToSave = new ArrayList<>();
+        Set<ProductItem> itemsToIndex = new LinkedHashSet<>();
+
+        for (CsvProductRow row : rows) {
+            if (row.externalId() == null || row.externalId().isBlank()) {
+                ProductItem item = ProductItem.createFromFile(
+                        company, sourceFile, uploader, null, row.productName(), row.price(),
+                        row.description(), row.productUrl());
+                if (!isMeaningless(row.category())) item.addCategory(row.category());
+                itemsToSave.add(item);
+                itemsToIndex.add(item);
+                created++;
+                continue;
+            }
+
+            ProductItem item = processedInThisBatch.get(row.externalId());
+
+            if (item == null) {
+                item = existingItems.get(row.externalId());
+
+                if (item != null) {
+                    boolean changed = false;
+                    if (!isMeaningless(row.category())) {
+                        changed = item.addCategory(row.category());
+                    }
+
+                    if (item.hasDifferentContent(row.productName(), row.price(), row.description(), row.productUrl())) {
+                        item.update(row.productName(), row.price(), row.description(), row.productUrl(), uploader);
+                        changed = true;
+                        updated++;
+                    } else {
+                        skipped++;
+                    }
+
+                    if (changed) {
+                        itemsToSave.add(item);
+                        itemsToIndex.add(item);
+                    }
+                } else {
+                    item = ProductItem.createFromFile(
+                            company, sourceFile, uploader, row.externalId(), row.productName(), row.price(),
+                            row.description(), row.productUrl());
+                    if (!isMeaningless(row.category())) item.addCategory(row.category());
+                    itemsToSave.add(item);
+                    itemsToIndex.add(item);
+                    created++;
+                }
+
+                processedInThisBatch.put(row.externalId(), item);
+            } else {
+                if (!isMeaningless(row.category()) && item.addCategory(row.category())) {
+                    itemsToSave.add(item);
+                    itemsToIndex.add(item);
+                }
+                skipped++;
+            }
+        }
+
+        long afterMerge = System.currentTimeMillis();
+
+        if (!itemsToSave.isEmpty()) {
+            productItemRepository.saveAllAndFlush(itemsToSave);
+        }
+
+        long afterDbSave = System.currentTimeMillis();
+
+        openSearchIndexService.indexProductItems(new ArrayList<>(itemsToIndex));
+
+        long afterIndex = System.currentTimeMillis();
+
         System.out.println("========== 업로드 소요시간 분석 ==========");
-        System.out.println("총 처리 행 수            : " + rowCount + "건");
-        System.out.println("CSV 파싱 + DB 저장 총합   : " + parseAndSaveTimeMs + "ms");
-        System.out.println("임베딩 + OpenSearch 색인 총합 : " + indexTimeMs + "ms");
-        System.out.println("전체 소요 시간            : " + totalTimeMs + "ms");
+        System.out.println("총 CSV 행 수              : " + rows.size() + "건");
+        System.out.println("색인 대상 건수             : " + itemsToIndex.size() + "건");
+        System.out.println("CSV 파싱                  : " + (afterParse - totalStart) + "ms");
+        System.out.println("기존 상품 조회(DB)         : " + (afterLookup - afterParse) + "ms");
+        System.out.println("병합/비교 로직             : " + (afterMerge - afterLookup) + "ms");
+        System.out.println("DB 저장(saveAllAndFlush)   : " + (afterDbSave - afterMerge) + "ms");
+        System.out.println("임베딩 + OpenSearch 배치 색인 : " + (afterIndex - afterDbSave) + "ms");
+        System.out.println("전체 소요 시간             : " + (afterIndex - totalStart) + "ms");
         System.out.println("생성 " + created + "건 / 수정 " + updated + "건 / 스킵 " + skipped + "건");
         System.out.println("==========================================");
 
         return new IncrementalUploadResultDto(created, updated, skipped);
+    }
+
+    private Map<String, ProductItem> findExistingItems(Long companyId, Set<String> externalIds) {
+        if (externalIds.isEmpty()) return Map.of();
+
+        List<ProductItem> items = partition(externalIds, EXISTING_ITEM_LOOKUP_BATCH_SIZE).stream()
+                .flatMap(batch -> productItemRepository
+                        .findByCompanyIdAndExternalProductIdInAndDeletedAtIsNull(companyId, batch)
+                        .stream())
+                .toList();
+
+        return items.stream()
+                .collect(Collectors.toMap(ProductItem::getExternalProductId, item -> item, (left, right) -> left));
+    }
+
+    private List<List<String>> partition(Collection<String> values, int batchSize) {
+        List<String> list = new ArrayList<>(values);
+        List<List<String>> batches = new ArrayList<>();
+        for (int i = 0; i < list.size(); i += batchSize) {
+            batches.add(list.subList(i, Math.min(i + batchSize, list.size())));
+        }
+        return batches;
     }
 
     private String readColumn(CSVRecord record, String columnName) {
@@ -178,15 +218,24 @@ public class ProductItemService {
         return category == null || MEANINGLESS_CATEGORIES.contains(category.trim());
     }
 
+    private int parsePrice(String priceRaw) {
+        if (priceRaw == null) return 0;
+        String digits = priceRaw.trim().replaceAll("[^0-9]", "");
+        return digits.isBlank() ? 0 : Integer.parseInt(digits);
+    }
+
     private Reader createBomAwareReader(Path csvPath) throws IOException {
-        byte[] bytes = Files.readAllBytes(csvPath);
-        int offset = 0;
-        if (bytes.length >= 3 && bytes[0] == (byte) 0xEF && bytes[1] == (byte) 0xBB && bytes[2] == (byte) 0xBF) {
-            offset = 3;
+        InputStream inputStream = Files.newInputStream(csvPath);
+        PushbackInputStream pushbackInputStream = new PushbackInputStream(inputStream, 3);
+        byte[] bom = new byte[3];
+        int bytesRead = pushbackInputStream.read(bom, 0, bom.length);
+        if (bytesRead > 0 && !(bytesRead == 3
+                && bom[0] == (byte) 0xEF
+                && bom[1] == (byte) 0xBB
+                && bom[2] == (byte) 0xBF)) {
+            pushbackInputStream.unread(bom, 0, bytesRead);
         }
-        return new InputStreamReader(
-                new ByteArrayInputStream(bytes, offset, bytes.length - offset),
-                StandardCharsets.UTF_8);
+        return new InputStreamReader(pushbackInputStream, StandardCharsets.UTF_8);
     }
 
     @Transactional(readOnly = true)
@@ -208,16 +257,16 @@ public class ProductItemService {
     @Transactional
     public ProductItemResponseDto create(ProductItemCreateRequestDto request, Long companyId, Long memberId) {
         Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new IllegalStateException("회사 정보를 찾을 수 없습니다."));
+                .orElseThrow(() -> new IllegalStateException("Company not found."));
         Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
+                .orElseThrow(() -> new IllegalStateException("Member not found."));
 
         ProductItem item = ProductItem.createManually(
                 company, member, request.productName(), request.price(), request.description());
         if (request.categories() != null) {
             request.categories().forEach(item::addCategory);
         }
-        productItemRepository.save(item);
+        productItemRepository.saveAndFlush(item);
         openSearchIndexService.indexProductItem(item);
         return toDto(item);
     }
@@ -232,9 +281,8 @@ public class ProductItemService {
         }
 
         Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
+                .orElseThrow(() -> new IllegalStateException("Member not found."));
 
-        // request에 url이 없으면 기존 url 유지
         String productUrl = request.productUrl() != null ? request.productUrl() : item.getProductUrl();
         item.update(request.productName(), request.price(), request.description(), productUrl, member);
         if (request.categories() != null) {
@@ -263,7 +311,7 @@ public class ProductItemService {
         }
 
         Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
+                .orElseThrow(() -> new IllegalStateException("Member not found."));
 
         item.markAsDeleted(member);
         openSearchIndexService.deleteProductItem(item.getId());

@@ -92,13 +92,15 @@ public class ProductItem {
         return createFromFile(company, null, createdBy, null, productName, price, description, null);
     }
 
-    public void addCategory(String category) {
-        if (category == null || category.isBlank()) return;
+    public boolean addCategory(String category) {
+        if (category == null || category.isBlank()) return false;
         boolean exists = this.categories.stream()
                 .anyMatch(c -> c.getCategory().equals(category));
         if (!exists) {
             this.categories.add(ProductItemCategory.create(this, category));
+            return true;
         }
+        return false;
     }
 
     public List<String> getCategoryNames() {

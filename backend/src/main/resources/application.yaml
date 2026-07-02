@@ -12,10 +12,14 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
+        jdbc:
+          batch_size: 100
+        order_inserts: true
+        order_updates: true
     open-in-view: false
 
 server:
@@ -37,3 +41,7 @@ opensearch:
 
 ai-server:
   base-url: http://localhost:8000
+
+widgetrag:
+  storage:
+    base-path: C:/Users/SMT23/WidgetRAG/widgetrag-data

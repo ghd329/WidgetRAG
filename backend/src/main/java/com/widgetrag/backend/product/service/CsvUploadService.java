@@ -118,14 +118,17 @@ public class CsvUploadService {
     }
 
     private Reader createBomAwareReader(Path csvPath) throws IOException {
-        byte[] bytes = Files.readAllBytes(csvPath);
-        int offset = 0;
-        if (bytes.length >= 3 && bytes[0] == (byte) 0xEF && bytes[1] == (byte) 0xBB && bytes[2] == (byte) 0xBF) {
-            offset = 3;
+        InputStream inputStream = Files.newInputStream(csvPath);
+        PushbackInputStream pushbackInputStream = new PushbackInputStream(inputStream, 3);
+        byte[] bom = new byte[3];
+        int bytesRead = pushbackInputStream.read(bom, 0, bom.length);
+        if (bytesRead > 0 && !(bytesRead == 3
+                && bom[0] == (byte) 0xEF
+                && bom[1] == (byte) 0xBB
+                && bom[2] == (byte) 0xBF)) {
+            pushbackInputStream.unread(bom, 0, bytesRead);
         }
-        return new InputStreamReader(
-                new ByteArrayInputStream(bytes, offset, bytes.length - offset),
-                StandardCharsets.UTF_8);
+        return new InputStreamReader(pushbackInputStream, StandardCharsets.UTF_8);
     }
 
     private CsvMappingDto suggestMapping(List<String> headers) {

@@ -43,13 +43,11 @@ class EmbedBatchRequest(BaseModel):
 
 @app.post("/embed/batch")
 def embed_batch(request: EmbedBatchRequest):
-    vectors = []
-
-    for text in request.texts:
-        vector = embed_text(text)
-        vectors.append(vector)
-
-    return vectors
+    embeddings = embedding_model.encode(
+        request.texts,
+        normalize_embeddings=True
+    )
+    return embeddings.tolist()
 
 
 @app.get("/health")
