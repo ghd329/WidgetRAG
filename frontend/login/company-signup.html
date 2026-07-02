@@ -7,7 +7,6 @@
 
   <link rel="stylesheet" href="../assets/css/common.css">
   <script src="../assets/js/auth.js"></script>
-  <script src="../assets/js/api.js"></script>
 
   <style>
     * {
@@ -249,25 +248,27 @@
       <div class="input-box">
         <span>🔒</span>
         <input
-            type="password"
-            id="password"
-            placeholder="비밀번호"
-            minlength="8"
-            required
-            title="영문, 숫자, 특수문자를 포함한 8자 이상으로 입력해주세요.">
+          type="password"
+          id="password"
+          placeholder="비밀번호"
+          minlength="8"
+          maxlength="20"
+          required
+          title="영문, 특수문자를 포함한 8자 이상 20자 이하로 입력해주세요.">
      </div>
 
       <div class="input-box">
         <span>🔒</span>
         <input
-            type="password"
-            id="passwordCheck"
-            placeholder="비밀번호 확인"
-            minlength="8"
-            required>
+          type="password"
+          id="passwordCheck"
+          placeholder="비밀번호 확인"
+          minlength="8"
+          maxlength="20"
+          required>
       </div>
 
-      <button class="signup-btn" onclick="signupCompany()">
+      <button class="signup-btn" type="button" id="signupBtn">
         회원가입
       </button>
 
@@ -279,6 +280,7 @@
   </section>
 
   <script>
+    const BACKEND_BASE = "http://localhost:8080";
 
     async function signupCompany() {
       const companyName = document.getElementById("companyName").value.trim();
@@ -304,6 +306,14 @@
 
       if (!password) {
         alert("비밀번호를 입력해주세요.");
+        return;
+      }
+
+      const passwordRegex =
+        /^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,20}$/;
+
+      if (!passwordRegex.test(password)) {
+        alert("비밀번호는 영문 포함, 특수문자 포함, 8자 이상 20자 이하로 입력해주세요.");
         return;
       }
 
@@ -341,6 +351,15 @@
         alert("회원가입 중 오류가 발생했습니다.");
       }
     }
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        signupCompany();
+      }
+    });
+
+    document.getElementById("signupBtn").addEventListener("click", signupCompany);
   </script>
 </body>
 </html>

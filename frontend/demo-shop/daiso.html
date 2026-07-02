@@ -1,0 +1,499 @@
+<!-- daiso.html -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daiso Shop</title>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: "Pretendard", sans-serif;
+            background: #e60012;
+            color: #111827;
+        }
+
+        .shop-header {
+            height: 78px;
+            background: #e60012;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 70px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-bottom: 1px solid rgba(255,255,255,.25);
+        }
+
+        .logo {
+            font-size: 32px;
+            font-weight: 900;
+            letter-spacing: -1px;
+        }
+
+        .nav {
+            display: flex;
+            gap: 22px;
+            font-weight: 800;
+        }
+
+        .nav span {
+            cursor: pointer;
+        }
+
+        .nav span:hover {
+            text-decoration: underline;
+        }
+
+        .shop-actions {
+            display: flex;
+            gap: 16px;
+            font-size: 22px;
+        }
+
+        .hero {
+            background: #e60012;
+            color: white;
+            padding: 90px 70px 80px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 40px;
+        }
+
+        .hero-text h1 {
+            font-size: 56px;
+            line-height: 1.18;
+            margin-bottom: 20px;
+            letter-spacing: -2px;
+        }
+
+        .hero-text p {
+            font-size: 19px;
+            line-height: 1.7;
+            margin-bottom: 32px;
+            color: rgba(255,255,255,.9);
+        }
+
+        .hero-btn {
+            padding: 16px 30px;
+            border: none;
+            border-radius: 999px;
+            background: white;
+            color: #e60012;
+            font-weight: 900;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .hero-visual {
+            width: 330px;
+            height: 330px;
+            border-radius: 42px;
+            background: white;
+            color: #e60012;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 88px;
+            font-weight: 900;
+            box-shadow: 0 30px 60px rgba(0,0,0,.18);
+            transform: rotate(-5deg);
+        }
+
+        .shop-container {
+            background: #f8fafc;
+            border-radius: 42px 42px 0 0;
+            padding: 55px 70px 100px;
+        }
+
+        .section-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 28px;
+        }
+
+        .section-top h2 {
+            font-size: 30px;
+        }
+
+        .section-top p {
+            color: #6b7280;
+            margin-top: 7px;
+        }
+
+        .filter-box {
+            display: flex;
+            gap: 10px;
+        }
+
+        .filter-box input,
+        .filter-box select {
+            height: 44px;
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            padding: 0 14px;
+            outline: none;
+            background: white;
+        }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+            align-items: stretch;
+        }
+
+        .product-card {
+            background: white;
+            border-radius: 24px;
+            min-height: 260px;
+            box-shadow: 0 10px 25px rgba(0,0,0,.06);
+            transition: .25s;
+            cursor: pointer;
+            border: 1px solid #f1f5f9;
+        }
+
+        .product-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 18px 38px rgba(0,0,0,.12);
+        }
+
+        .product-info {
+            padding: 26px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .product-category {
+            width: fit-content;
+            background: #fff1f2;
+            color: #e60012;
+            font-size: 12px;
+            font-weight: 900;
+            padding: 7px 12px;
+            border-radius: 999px;
+            margin-bottom: 16px;
+        }
+
+        .product-info h3 {
+            font-size: 18px;
+            line-height: 1.45;
+            margin-bottom: 12px;
+            min-height: 52px;
+
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .product-desc {
+            color: #6b7280;
+            font-size: 14px;
+            line-height: 1.55;
+            margin-bottom: 22px;
+
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .product-price {
+            margin-top: auto;
+            font-size: 22px;
+            font-weight: 900;
+            color: #e60012;
+        }
+
+        .empty {
+            grid-column: 1 / -1;
+            background: white;
+            padding: 50px;
+            border-radius: 20px;
+            text-align: center;
+            color: #777;
+        }
+
+        @media (max-width: 1100px) {
+            .product-grid { grid-template-columns: repeat(3, 1fr); }
+            .hero-visual { display: none; }
+        }
+
+        @media (max-width: 760px) {
+            .shop-header { padding: 0 24px; }
+            .nav { display: none; }
+            .hero { padding: 60px 24px; }
+            .hero-text h1 { font-size: 38px; }
+            .shop-container { padding: 40px 24px 90px; }
+            .section-top { flex-direction: column; align-items: flex-start; gap: 18px; }
+            .filter-box { width: 100%; flex-direction: column; }
+            .filter-box input, .filter-box select { width: 100%; }
+            .product-grid { grid-template-columns: repeat(1, 1fr); }
+        }
+    </style>
+</head>
+
+<body>
+<header class="shop-header">
+    <div class="logo">daiso</div>
+
+    <nav class="nav">
+        <span onclick="setCategory('all')">전체</span>
+        <span onclick="setCategory('주방용품')">주방용품</span>
+        <span onclick="setCategory('청소/욕실')">청소/욕실</span>
+        <span onclick="setCategory('수납/정리')">수납/정리</span>
+        <span onclick="setCategory('뷰티/위생')">뷰티/위생</span>
+        <span onclick="setCategory('반려동물')">반려동물</span>
+        <span onclick="setCategory('유아/완구')">유아/완구</span>
+    </nav>
+
+    <div class="shop-actions">
+        <span>🔍</span>
+        <span>🛒</span>
+    </div>
+</header>
+
+<section class="hero">
+    <div class="hero-text">
+        <h1>필요한 건<br>다이소에 있다</h1>
+        <p>관리자 페이지에서 업로드한 상품 데이터를 기반으로<br>다이소 쇼핑몰 상품을 표시합니다.</p>
+        <button class="hero-btn" onclick="scrollToProducts()">상품 둘러보기</button>
+    </div>
+
+    <div class="hero-visual">₩</div>
+</section>
+
+<main class="shop-container" id="productsSection">
+    <div class="section-top">
+        <div>
+            <h2>다이소 상품 목록</h2>
+            <p>업로드된 CSV 상품 데이터가 자동으로 표시됩니다.</p>
+        </div>
+
+        <div class="filter-box">
+            <input id="searchInput" type="text" placeholder="상품 검색" oninput="renderProducts()">
+
+            <select id="categoryFilter" onchange="renderProducts()">
+                <option value="all">전체 카테고리</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="product-grid" id="productGrid">
+        <div class="empty">상품을 불러오는 중입니다.</div>
+    </div>
+</main>
+
+<script>
+    const API_BASE = "http://localhost:8080";
+    let productsCache = [];
+
+    function scrollToProducts() {
+        document.getElementById("productsSection").scrollIntoView({ behavior: "smooth" });
+    }
+
+    function setCategory(category) {
+        document.getElementById("categoryFilter").value = category;
+        scrollToProducts();
+        renderProducts();
+    }
+
+    function getValue(item, keys) {
+        for (const key of keys) {
+            if (item[key] !== undefined && item[key] !== null && item[key] !== "") {
+                return item[key];
+            }
+        }
+        return "";
+    }
+
+    function normalizeDaisoMainCategory(text) {
+        text = String(text || "");
+
+        if (text.includes("주방") || text.includes("컵") || text.includes("그릇") || text.includes("도마") || text.includes("수저") || text.includes("텀블러")) return "주방용품";
+        if (text.includes("청소") || text.includes("욕실") || text.includes("세탁") || text.includes("수건") || text.includes("세제") || text.includes("휴지")) return "청소/욕실";
+        if (text.includes("수납") || text.includes("정리") || text.includes("바구니") || text.includes("박스") || text.includes("행거")) return "수납/정리";
+        if (text.includes("뷰티") || text.includes("위생") || text.includes("스킨") || text.includes("토너") || text.includes("화장") || text.includes("마스크") || text.includes("헤어")) return "뷰티/위생";
+        if (text.includes("반려") || text.includes("강아지") || text.includes("고양이") || text.includes("사료")) return "반려동물";
+        if (text.includes("완구") || text.includes("유아") || text.includes("장난감") || text.includes("인형")) return "유아/완구";
+        if (text.includes("패션") || text.includes("잡화") || text.includes("가방") || text.includes("양말")) return "패션/잡화";
+
+        return "기타";
+    }
+
+    function normalizeProduct(item) {
+        const categories = item.categories || item.categoryNames || [];
+        const categoryText = Array.isArray(categories) ? categories.join(" ") : String(categories || "");
+
+        return {
+            id: getValue(item, ["product_id", "id", "itemId", "productItemId"]),
+            product_name: getValue(item, ["product_name", "productName", "itemName", "name"]),
+            category_main: normalizeDaisoMainCategory(categoryText),
+            category_sub: Array.isArray(categories) && categories.length > 0 ? categories[0] : "-",
+            description: getValue(item, ["description", "productDescription", "content"]),
+            price: getValue(item, ["price", "productPrice", "itemPrice"]),
+            url: getValue(item, ["url", "productUrl", "link"])
+        };
+    }
+
+    function shortenText(text, maxLength = 120) {
+        if (!text) return "상품 설명이 없습니다.";
+        return text.length > maxLength ? text.slice(0, maxLength) + "..." : text;
+    }
+
+    function loadCategories(products) {
+        const categoryFilter = document.getElementById("categoryFilter");
+
+        categoryFilter.innerHTML = `
+            <option value="all">전체 카테고리</option>
+        `;
+
+        const categories = [
+            "반려동물",
+            "뷰티/위생",
+            "수납/정리",
+            "유아/완구",
+            "주방용품",
+            "청소/욕실",
+            "패션/잡화"
+        ];
+
+        categories.forEach(category => {
+            if (products.some(item => item.category_main === category)) {
+                const option = document.createElement("option");
+                option.value = category;
+                option.innerText = category;
+                categoryFilter.appendChild(option);
+            }
+        });
+    }
+
+    function formatPrice(price) {
+        if (!price) return "-";
+
+        const numberPrice = String(price).replace(/[^0-9]/g, "");
+
+        if (!numberPrice) return price;
+
+        return Number(numberPrice).toLocaleString("ko-KR") + "원";
+    }
+
+    async function loadProducts() {
+        const productGrid = document.getElementById("productGrid");
+
+        try {
+            productGrid.innerHTML = `<div class="empty">상품을 불러오는 중입니다.</div>`;
+
+            const response = await fetch(`${API_BASE}/api/product-items`, {
+                method: "GET",
+                credentials: "include"
+            });
+
+            if (!response.ok) {
+                throw new Error("상품 목록 조회 실패");
+            }
+
+            const data = await response.json();
+            console.log("daiso products:", data);
+
+            productsCache = Array.isArray(data)
+                ? data.map(normalizeProduct)
+                : [];
+
+            loadCategories(productsCache);
+            renderProducts();
+
+        } catch (error) {
+            console.error(error);
+
+            productGrid.innerHTML = `
+                <div class="empty">
+                    상품 데이터를 불러오지 못했습니다.<br>
+                    백엔드 서버와 API 상태를 확인해주세요.
+                </div>
+            `;
+        }
+    }
+
+    function renderProducts() {
+        const productGrid = document.getElementById("productGrid");
+        const searchInput = document.getElementById("searchInput").value.trim().toLowerCase();
+        const categoryFilter = document.getElementById("categoryFilter").value;
+
+        let filteredProducts = [...productsCache];
+
+        if (searchInput) {
+            filteredProducts = filteredProducts.filter(item =>
+                String(item.product_name || "").toLowerCase().includes(searchInput) ||
+                String(item.category_main || "").toLowerCase().includes(searchInput) ||
+                String(item.category_sub || "").toLowerCase().includes(searchInput) ||
+                String(item.description || "").toLowerCase().includes(searchInput)
+            );
+        }
+
+        if (categoryFilter !== "all") {
+            filteredProducts = filteredProducts.filter(item =>
+                item.category_main === categoryFilter
+            );
+        }
+
+        productGrid.innerHTML = "";
+
+        if (filteredProducts.length === 0) {
+            productGrid.innerHTML = `
+                <div class="empty">
+                    표시할 상품이 없습니다.
+                </div>
+            `;
+            return;
+        }
+
+        filteredProducts.forEach(product => {
+            const card = document.createElement("div");
+            card.className = "product-card";
+
+            if (product.url) {
+                card.onclick = () => {
+                    window.open(product.url, "_blank");
+                };
+            }
+
+            card.innerHTML = `
+                <div class="product-info">
+                    <span class="product-category">
+                        ${product.category_main || "다이소 상품"}
+                    </span>
+
+                    <h3>${product.product_name || "상품명 없음"}</h3>
+
+                    <p class="product-desc">
+                        ${shortenText(product.description, 120)}
+                    </p>
+
+                    <div class="product-price">
+                        ${formatPrice(product.price)}
+                    </div>
+                </div>
+            `;
+
+            productGrid.appendChild(card);
+        });
+    }
+
+    window.onload = loadProducts;
+</script>
+
+<script
+    src="http://127.0.0.1:8080/widget.js"
+    data-client-code="shop_9f745e87">
+</script>
+</body>
+</html>
