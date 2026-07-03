@@ -172,7 +172,7 @@
                     <td>${dateText}</td>
                     <td>${statusText}</td>
                     <td>
-                        <button class="delete" onclick="deleteQuestion(${item.id})">
+                        <button class="delete" onclick="deleteQuestion(${item.id}, this)">
                             삭제
                         </button>
                     </td>
@@ -187,13 +187,17 @@
          * TODO: 백엔드에 DELETE /api/chat-logs/{id} 엔드포인트 추가 필요.
          * 아직 삭제 API가 없어서, 추가되기 전까지는 삭제가 동작하지 않는다.
          */
-        async function deleteQuestion(chatLogId) {
+        async function deleteQuestion(chatLogId, btn) {
             const confirmed = await showConfirm("이 질문 내역을 삭제하시겠습니까?", {
                 title: "질문 내역 삭제",
                 confirmText: "삭제"
             });
 
             if (!confirmed) return;
+
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<span class="uif-spinner"></span>삭제중...`;
 
             try {
                 const response = await fetch(`${BACKEND_BASE}/api/chat-logs/${chatLogId}`, {
@@ -210,6 +214,8 @@
             } catch (error) {
                 console.error(error);
                 showToast("삭제 중 오류가 발생했습니다. " + error.message, "error");
+                btn.disabled = false;
+                btn.innerHTML = originalText;
             }
         }
     </script>
