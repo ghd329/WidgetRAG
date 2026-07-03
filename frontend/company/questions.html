@@ -9,10 +9,12 @@
 
     <link rel="stylesheet" href="../assets/css/common.css">
     <link rel="stylesheet" href="../assets/css/company.css">
+    <link rel="stylesheet" href="../assets/css/ui-feedback.css">
 
     <script src="../assets/js/auth.js"></script>
     <script src="../assets/js/api.js"></script>
     <script src="../assets/js/company.js"></script>
+    <script src="../assets/js/ui-feedback.js"></script>
 </head>
 
 <body onload="initQuestionsPage()">
@@ -186,7 +188,12 @@
          * 아직 삭제 API가 없어서, 추가되기 전까지는 삭제가 동작하지 않는다.
          */
         async function deleteQuestion(chatLogId) {
-            if (!confirm("이 질문 내역을 삭제하시겠습니까?")) return;
+            const confirmed = await showConfirm("이 질문 내역을 삭제하시겠습니까?", {
+                title: "질문 내역 삭제",
+                confirmText: "삭제"
+            });
+
+            if (!confirmed) return;
 
             try {
                 const response = await fetch(`${BACKEND_BASE}/api/chat-logs/${chatLogId}`, {
@@ -202,7 +209,7 @@
 
             } catch (error) {
                 console.error(error);
-                alert("삭제 중 오류가 발생했습니다.\n" + error.message);
+                showToast("삭제 중 오류가 발생했습니다. " + error.message, "error");
             }
         }
     </script>

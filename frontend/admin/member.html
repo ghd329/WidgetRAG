@@ -6,6 +6,9 @@
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
 
+    <link rel="stylesheet" href="../assets/css/ui-feedback.css">
+    <script src="../assets/js/ui-feedback.js"></script>
+
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -423,32 +426,42 @@
     }
 
     async function deleteMember(memberId) {
-        if (!confirm("해당 회원을 탈퇴 처리하시겠습니까?")) return;
+        const confirmed = await showConfirm("해당 회원을 탈퇴 처리하시겠습니까?", {
+            title: "회원 탈퇴 처리",
+            confirmText: "탈퇴 처리"
+        });
+
+        if (!confirmed) return;
 
         const response = await fetch(`${API_BASE}/api/admin/members/${memberId}`, {
             method: "DELETE"
         });
 
         if (response.ok) {
-            alert("회원 탈퇴 처리 완료");
+            showToast("회원 탈퇴 처리 완료");
             loadMembers();
         } else {
-            alert("회원 탈퇴 실패");
+            showToast("회원 탈퇴 실패", "error");
         }
     }
 
     async function deleteCompany(companyId) {
-        if (!confirm("해당 기업을 탈퇴 처리하시겠습니까? 소속 회원도 함께 삭제됩니다.")) return;
+        const confirmed = await showConfirm("해당 기업을 탈퇴 처리하시겠습니까? 소속 회원도 함께 삭제됩니다.", {
+            title: "기업 탈퇴 처리",
+            confirmText: "탈퇴 처리"
+        });
+
+        if (!confirmed) return;
 
         const response = await fetch(`${API_BASE}/api/admin/companies/${companyId}`, {
             method: "DELETE"
         });
 
         if (response.ok) {
-            alert("기업 탈퇴 처리 완료");
+            showToast("기업 탈퇴 처리 완료");
             loadMembers();
         } else {
-            alert("기업 탈퇴 실패");
+            showToast("기업 탈퇴 실패", "error");
         }
     }
 
