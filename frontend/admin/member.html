@@ -335,6 +335,7 @@
 
     function renderCompanyList() {
         const select = document.getElementById("companyFilter");
+        const previousValue = select.value;
 
         const companies = [...new Set(
             allMembers
@@ -350,6 +351,10 @@
                 <option value="${company}">${company}</option>
             `;
         });
+
+        if (companies.includes(previousValue)) {
+            select.value = previousValue;
+        }
     }
 
     function filterCompany() {
@@ -405,7 +410,7 @@
                         ${
                             member.role === "EMPLOYEE"
                                 ? `<button class="small-btn delete-member-btn"
-                                        onclick="deleteMember(${member.memberId})">
+                                        onclick="deleteMember(${member.memberId}, this)">
                                     회원 탈퇴
                                 </button>`
                                 : ""
@@ -414,7 +419,7 @@
                         ${
                             member.role === "COMPANY_OWNER"
                                 ? `<button class="small-btn delete-company-btn"
-                                        onclick="deleteCompany(${member.companyId})">
+                                        onclick="deleteCompany(${member.companyId}, this)">
                                     기업 탈퇴
                                 </button>`
                                 : ""
@@ -425,7 +430,7 @@
         });
     }
 
-    async function deleteMember(memberId) {
+    async function deleteMember(memberId, btn) {
         const confirmed = await showConfirm("해당 회원을 탈퇴 처리하시겠습니까?", {
             title: "회원 탈퇴 처리",
             confirmText: "탈퇴 처리"
@@ -433,19 +438,32 @@
 
         if (!confirmed) return;
 
-        const response = await fetch(`${API_BASE}/api/admin/members/${memberId}`, {
-            method: "DELETE"
-        });
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="uif-spinner"></span>삭제중...`;
 
-        if (response.ok) {
-            showToast("회원 탈퇴 처리 완료");
-            loadMembers();
-        } else {
+        try {
+            const response = await fetch(`${API_BASE}/api/admin/members/${memberId}`, {
+                method: "DELETE"
+            });
+
+            if (response.ok) {
+                showToast("회원 탈퇴 처리 완료");
+                loadMembers();
+            } else {
+                showToast("회원 탈퇴 실패", "error");
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        } catch (error) {
+            console.error(error);
             showToast("회원 탈퇴 실패", "error");
+            btn.disabled = false;
+            btn.innerHTML = originalText;
         }
     }
 
-    async function deleteCompany(companyId) {
+    async function deleteCompany(companyId, btn) {
         const confirmed = await showConfirm("해당 기업을 탈퇴 처리하시겠습니까? 소속 회원도 함께 삭제됩니다.", {
             title: "기업 탈퇴 처리",
             confirmText: "탈퇴 처리"
@@ -453,15 +471,28 @@
 
         if (!confirmed) return;
 
-        const response = await fetch(`${API_BASE}/api/admin/companies/${companyId}`, {
-            method: "DELETE"
-        });
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="uif-spinner"></span>삭제중...`;
 
-        if (response.ok) {
-            showToast("기업 탈퇴 처리 완료");
-            loadMembers();
-        } else {
+        try {
+            const response = await fetch(`${API_BASE}/api/admin/companies/${companyId}`, {
+                method: "DELETE"
+            });
+
+            if (response.ok) {
+                showToast("기업 탈퇴 처리 완료");
+                loadMembers();
+            } else {
+                showToast("기업 탈퇴 실패", "error");
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        } catch (error) {
+            console.error(error);
             showToast("기업 탈퇴 실패", "error");
+            btn.disabled = false;
+            btn.innerHTML = originalText;
         }
     }
 

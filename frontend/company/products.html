@@ -185,7 +185,7 @@
                     <td>${product.description || "-"}</td>
                     <td>-</td>
                     <td>
-                        <button class="delete" onclick="deleteProductItem(${product.id})">삭제</button>
+                        <button class="delete" onclick="deleteProductItem(${product.id}, this)">삭제</button>
                     </td>
                 `;
 
@@ -205,13 +205,17 @@
             }
         }
 
-        async function deleteProductItem(itemId) {
+        async function deleteProductItem(itemId, btn) {
             const confirmed = await showConfirm("이 상품을 삭제하시겠습니까?", {
                 title: "상품 삭제",
                 confirmText: "삭제"
             });
 
             if (!confirmed) return;
+
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<span class="uif-spinner"></span>삭제중...`;
 
             try {
                 const res = await fetch(`${BACKEND_BASE}/api/product-items/${itemId}`, {
@@ -229,6 +233,8 @@
             } catch (error) {
                 console.error(error);
                 showToast("상품 삭제 중 오류가 발생했습니다. " + error.message, "error");
+                btn.disabled = false;
+                btn.innerHTML = originalText;
             }
         }
 

@@ -132,3 +132,26 @@ body.dark-mode .uif-btn-secondary {
     background: #374151;
     color: #f9fafb;
 }
+
+.uif-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(255, 255, 255, .5);
+    border-top-color: #fff;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+    animation: uif-spin .7s linear infinite;
+}
+
+@keyframes uif-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+button:disabled {
+    opacity: .65;
+    cursor: not-allowed;
+}

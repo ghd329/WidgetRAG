@@ -388,7 +388,7 @@
                     </td>
                     <td>${item.status || "-"}</td>
                     <td>
-                        <button class="delete-btn" onclick="deleteUpload(${item.fileId})">
+                        <button class="delete-btn" onclick="deleteUpload(${item.fileId}, this)">
                             삭제
                         </button>
                     </td>
@@ -410,7 +410,7 @@
         }
     }
 
-    async function deleteUpload(fileId) {
+    async function deleteUpload(fileId, btn) {
         if (!fileId) {
             showToast("삭제할 파일 ID를 찾지 못했습니다.", "error");
             return;
@@ -422,6 +422,10 @@
         });
 
         if (!confirmed) return;
+
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="uif-spinner"></span>삭제중...`;
 
         try {
             const res = await fetch(`${BACKEND_BASE}/api/products/${fileId}`, {
@@ -439,6 +443,8 @@
         } catch (error) {
             console.error(error);
             showToast("삭제 중 오류가 발생했습니다. " + error.message, "error");
+            btn.disabled = false;
+            btn.innerHTML = originalText;
         }
     }
 
