@@ -1,9 +1,15 @@
 package com.widgetrag.backend.product.dto;
 
+import java.time.LocalDateTime;
+
 public record UploadResponseDto(
         Long fileId,
         String fileName,
         String fileType,
+        LocalDateTime uploadedAt,
         String status,
-        IncrementalUploadResultDto itemResult // 추가 - null 가능 (txt는 파싱 안 하니까)
-) {}
+        int createdCount,
+        int updatedCount,
+        int duplicateCount
+) {
+}
