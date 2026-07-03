@@ -29,7 +29,7 @@ public class SecurityConfig {
         // origins while `allowCredentials` is true.
         config.addAllowedOriginPattern("http://**");
         config.addAllowedOriginPattern("https://**");
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true); // 세션 쿠키 주고받으려면 필수
 

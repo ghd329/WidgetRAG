@@ -58,4 +58,28 @@ public class MemberController {
         }
         return ResponseEntity.ok().build();
     }
+
+    @PatchMapping("/password")
+    public ResponseEntity<String> changePassword(
+            @RequestBody ChangePasswordRequestDto request
+    ) {
+        memberService.changePassword(request);
+        return ResponseEntity.ok("비밀번호 변경 완료");
+    }
+
+    @DeleteMapping("/withdraw")
+    public ResponseEntity<String> withdraw(
+            @RequestBody WithdrawRequestDto request
+    ) {
+        memberService.withdraw(request);
+        return ResponseEntity.ok("회원 탈퇴 완료");
+    }
+
+    @PostMapping("/find-password")
+    public ResponseEntity<String> findPassword(
+            @RequestBody FindPasswordRequestDto request
+    ) {
+        String tempPassword = memberService.findPassword(request);
+        return ResponseEntity.ok(tempPassword);
+    }
 }

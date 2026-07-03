@@ -101,9 +101,9 @@
             <div class="card" style="max-width: 720px; margin-bottom: 25px;">
                 <h3>비밀번호 변경</h3>
 
-                <input type="password" placeholder="현재 비밀번호" style="margin-top: 15px;">
-                <input type="password" placeholder="새 비밀번호">
-                <input type="password" placeholder="새 비밀번호 확인">
+                <input type="password" id="currentPassword" placeholder="현재 비밀번호" style="margin-top: 15px;">
+                <input type="password" id="newPassword" placeholder="새 비밀번호">
+                <input type="password" id="newPasswordConfirm" placeholder="새 비밀번호 확인">
 
                 <button class="primary-btn" onclick="changePassword()">
                     변경하기
@@ -130,7 +130,7 @@
                     회원탈퇴 시 등록된 상품 데이터와 챗봇 데이터가 삭제됩니다.
                 </p>
 
-                <button class="danger-btn">
+                <button class="danger-btn" onclick="withdrawMember()">
                     회원탈퇴
                 </button>
             </div>
@@ -153,12 +153,9 @@
         }
 
         function saveTheme() {
-
-            const theme =
-                document.getElementById("themeSelect").value;
+            const theme = document.getElementById("themeSelect").value;
 
             localStorage.setItem("theme", theme);
-
             applyTheme();
 
             alert("디스플레이 모드가 저장되었습니다.");
@@ -174,8 +171,93 @@
             }
         }
 
-        function changePassword() {
-            alert("비밀번호가 변경되었습니다.");
+        async function changePassword() {
+            const passwordRegex =
+    /^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,20}$/;
+            const memberId = localStorage.getItem("memberId");
+            const currentPassword = document.getElementById("currentPassword").value.trim();
+            const newPassword = document.getElementById("newPassword").value.trim();
+            const newPasswordConfirm = document.getElementById("newPasswordConfirm").value.trim();
+
+            if (!currentPassword || !newPassword || !newPasswordConfirm) {
+                alert("비밀번호를 모두 입력해 주세요.");
+                return;
+            }
+
+            if (newPassword !== newPasswordConfirm) {
+                alert("새 비밀번호가 일치하지 않습니다.");
+                return;
+            }
+
+            if (!passwordRegex.test(newPassword)) {
+                alert("비밀번호는 영문, 숫자, 특수문자를 포함한 8~20자여야 합니다.");
+                return;
+            }
+
+            const response = await fetch(`${BACKEND_BASE}/api/members/password`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                credentials: "include",
+                body: JSON.stringify({
+                    memberId: Number(memberId),
+                    currentPassword: currentPassword,
+                    newPassword: newPassword,
+                    newPasswordConfirm: newPasswordConfirm
+                })
+            });
+
+            if (response.ok) {
+                alert("비밀번호가 변경되었습니다. 다시 로그인해 주세요.");
+                localStorage.clear();
+                location.href = "../login/company-login.html";
+            } else {
+                const errorText = await response.text();
+
+                if (errorText.includes("현재 비밀번호")) {
+                    alert("현재 비밀번호가 일치하지 않습니다.");
+                } else if (errorText.includes("새 비밀번호")) {
+                    alert("새 비밀번호가 일치하지 않습니다.");
+                } else {
+                    alert("비밀번호 변경에 실패했습니다.");
+                }
+            }
+        }
+
+        async function withdrawMember() {
+            const memberId = localStorage.getItem("memberId");
+
+            const password = prompt("회원탈퇴를 진행하려면 현재 비밀번호를 입력해 주세요.");
+
+            if (!password) {
+                alert("회원탈퇴가 취소되었습니다.");
+                return;
+            }
+
+            if (!confirm("정말 회원탈퇴를 진행하시겠습니까?")) {
+                return;
+            }
+
+            const response = await fetch(`${BACKEND_BASE}/api/members/withdraw`, {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                credentials: "include",
+                body: JSON.stringify({
+                    memberId: Number(memberId),
+                    password: password
+                })
+            });
+
+            if (response.ok) {
+                alert("회원탈퇴가 완료되었습니다.");
+                localStorage.clear();
+                location.href = "../login/company-login.html";
+            } else {
+                alert("회원탈퇴에 실패했습니다. 비밀번호를 확인해 주세요.");
+            }
         }
     </script>
 </body>

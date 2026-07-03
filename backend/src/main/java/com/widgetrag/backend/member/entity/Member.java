@@ -19,19 +19,75 @@ public class Member {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", nullable = false)
-    private Company company; // 이 계정이 속한 회사
+    private Company company;
+
+    @Column(name = "name", length = 50)
+    private String name;
 
     @Column(name = "email", length = 100, nullable = false, unique = true)
     private String email;
 
     @Column(name = "password", length = 100, nullable = false)
-    private String password; // 암호화된 값만 저장
+    private String password;
 
-    public static Member create(Company company, String email, String encodedPassword) {
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private MemberStatus status;
+
+    public static Member createEmployee(Company company, String email, String encodedPassword, String name) {
         Member member = new Member();
         member.company = company;
         member.email = email;
         member.password = encodedPassword;
+        member.name = name;
+        member.role = Role.EMPLOYEE;
+        member.status = MemberStatus.ACTIVE;
         return member;
+    }
+
+    public static Member createCompanyOwner(Company company, String email, String encodedPassword, String name) {
+        Member member = new Member();
+        member.company = company;
+        member.email = email;
+        member.password = encodedPassword;
+        member.name = name;
+        member.role = Role.COMPANY_OWNER;
+        member.status = MemberStatus.PENDING;
+        return member;
+    }
+
+    public void activate() {
+        this.status = MemberStatus.ACTIVE;
+    }
+
+    public void reject() {
+        this.status = MemberStatus.REJECTED;
+    }
+
+    public static Member createAdmin(
+            Company company,
+            String email,
+            String encodedPassword,
+            String name
+    ) {
+        Member member = new Member();
+
+        member.company = company;
+        member.email = email;
+        member.password = encodedPassword;
+        member.name = name;
+
+        member.role = Role.ADMIN;
+        member.status = MemberStatus.ACTIVE;
+
+        return member;
+    }
+
+    public void changePassword(String encodedPassword) {
+        this.password = encodedPassword;
     }
 }
