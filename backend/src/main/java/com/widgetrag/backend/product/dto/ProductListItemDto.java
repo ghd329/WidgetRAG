@@ -8,5 +8,9 @@ public record ProductListItemDto(
         String fileType,
         String status,
         LocalDateTime uploadedAt,
-        LocalDateTime updatedAt
-) {}
+        LocalDateTime updatedAt,
+        int createdCount,
+        int updatedCount,
+        int duplicateCount
+) {
+}

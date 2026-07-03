@@ -65,8 +65,15 @@ public class FileStorageService {
         return productRepository.findByCompanyIdAndDeletedAtIsNull(companyId)
                 .stream()
                 .map(p -> new ProductListItemDto(
-                        p.getFileId(), p.getFileName(), p.getFileType(),
-                        p.getStatus(), p.getUploadedAt(), p.getUpdatedAt()
+                        p.getFileId(),
+                        p.getFileName(),
+                        p.getFileType(),
+                        p.getStatus(),
+                        p.getUploadedAt(),
+                        p.getUpdatedAt(),
+                        p.getCreatedCount(),
+                        p.getUpdatedCount(),
+                        p.getDuplicateCount()
                 ))
                 .toList();
     }
@@ -95,14 +102,21 @@ public class FileStorageService {
                 .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
 
         deletePhysicalFile(product.getStoragePath());
-        String newStoragePath = buildStoragePath(product.getCompany().getClientCode(), product.getFileId(), originalFilename);
+        String newStoragePath = buildStoragePath(product.getCompany().getClientCode(), product.getFileId(),
+                originalFilename);
         saveToFileSystem(file, newStoragePath);
 
         product.updateContent(originalFilename, extension, newStoragePath, member);
 
         return new UploadResponseDto(
-                product.getFileId(), product.getFileName(), product.getFileType(),
-                product.getStatus(), null
+                product.getFileId(),
+                product.getFileName(),
+                product.getFileType(),
+                product.getUploadedAt(),
+                product.getStatus(),
+                product.getCreatedCount(),
+                product.getUpdatedCount(),
+                product.getDuplicateCount()
         );
     }
 
@@ -143,8 +157,8 @@ public class FileStorageService {
                 .orElseThrow(() -> new IllegalStateException("회원 정보를 찾을 수 없습니다."));
 
         String originalFilename = request.originalFilename() != null
-            ? request.originalFilename()
-            : "uploaded.csv"; // 실제로는 preview 단계에서 원본 파일명도 같이 넘겨받는 게 좋음 (보완 필요)
+                ? request.originalFilename()
+                : "uploaded.csv"; // 실제로는 preview 단계에서 원본 파일명도 같이 넘겨받는 게 좋음 (보완 필요)
         Product product = Product.create(company, member, originalFilename, "csv", "");
         productRepository.save(product);
 
@@ -162,11 +176,25 @@ public class FileStorageService {
         IncrementalUploadResultDto itemResult = productItemService.parseAndSaveFromCsv(
                 tempPath, company, product, member, request.mapping());
 
+        product.updateUploadResult(
+                itemResult.created(),
+                itemResult.updated(),
+                itemResult.skipped()
+        );
+
+        productRepository.saveAndFlush(product);
+
         csvUploadService.cleanupTempFile(request.tempFileToken());
 
         return new UploadResponseDto(
-                product.getFileId(), product.getFileName(), product.getFileType(),
-                product.getStatus(), itemResult
+                product.getFileId(),
+                product.getFileName(),
+                product.getFileType(),
+                product.getUploadedAt(),
+                product.getStatus(),
+                product.getCreatedCount(),
+                product.getUpdatedCount(),
+                product.getDuplicateCount()
         );
     }
 }

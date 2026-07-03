@@ -118,7 +118,24 @@
             box-shadow: 0 10px 28px rgba(0,0,0,0.07);
         }
 
-        .table-card h2 { font-size: 22px; margin-bottom: 24px; }
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .table-card h2 { font-size: 22px; }
+
+        .company-filter {
+            width: 260px;
+            padding: 12px 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            font-size: 15px;
+            background: white;
+            cursor: pointer;
+        }
 
         table { width: 100%; border-collapse: collapse; }
 
@@ -242,7 +259,13 @@
         </section>
 
         <section class="table-card">
-            <h2>회원 목록</h2>
+            <div class="table-header">
+                <h2>회원 목록</h2>
+
+                <select id="companyFilter" class="company-filter" onchange="filterCompany()">
+                    <option value="">회사를 선택하세요</option>
+                </select>
+            </div>
 
             <table>
                 <thead>
@@ -265,6 +288,7 @@
 
 <script>
     const API_BASE = "http://localhost:8080";
+    let allMembers = [];
 
     function roleBadge(role) {
         if (role === "ADMIN") return `<span class="badge role-admin">ADMIN</span>`;
@@ -288,58 +312,11 @@
                 throw new Error("회원 목록을 불러오지 못했습니다.");
             }
 
-            const members = await response.json();
+            allMembers = await response.json();
 
-            document.getElementById("totalCount").innerText = members.length + "명";
-            document.getElementById("adminCount").innerText =
-                members.filter(m => m.role === "ADMIN").length + "명";
-            document.getElementById("ownerCount").innerText =
-                members.filter(m => m.role === "COMPANY_OWNER").length + "명";
-            document.getElementById("employeeCount").innerText =
-                members.filter(m => m.role === "EMPLOYEE").length + "명";
-
-            tbody.innerHTML = "";
-
-            if (members.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="7" class="empty">등록된 회원이 없습니다.</td>
-                    </tr>
-                `;
-                return;
-            }
-
-            members.forEach(member => {
-                tbody.innerHTML += `
-                    <tr>
-                        <td>${member.name ?? "-"}</td>
-                        <td>${member.email}</td>
-                        <td>${member.companyName}</td>
-                        <td>${member.clientCode}</td>
-                        <td>${roleBadge(member.role)}</td>
-                        <td>${statusBadge(member.status)}</td>
-                        <td>
-                            ${
-                                member.role === "EMPLOYEE"
-                                    ? `<button class="small-btn delete-member-btn"
-                                            onclick="deleteMember(${member.memberId})">
-                                        회원 탈퇴
-                                    </button>`
-                                    : ""
-                            }
-
-                            ${
-                                member.role === "COMPANY_OWNER"
-                                    ? `<button class="small-btn delete-company-btn"
-                                            onclick="deleteCompany(${member.companyId})">
-                                        기업 탈퇴
-                                    </button>`
-                                    : ""
-                            }
-                        </td>
-                    </tr>
-                `;
-            });
+            renderCompanyList();
+            renderMembers(allMembers);
+            updateSummary(allMembers);
 
         } catch (error) {
             console.error(error);
@@ -351,6 +328,98 @@
                 </tr>
             `;
         }
+    }
+
+    function renderCompanyList() {
+        const select = document.getElementById("companyFilter");
+
+        const companies = [...new Set(
+            allMembers
+                .filter(member => member.role !== "ADMIN")
+                .map(member => member.companyName)
+                .filter(companyName => companyName)
+        )];
+
+        select.innerHTML = `<option value="">전체 회사 보기</option>`;
+
+        companies.forEach(company => {
+            select.innerHTML += `
+                <option value="${company}">${company}</option>
+            `;
+        });
+    }
+
+    function filterCompany() {
+        const selectedCompany = document.getElementById("companyFilter").value;
+
+        if (selectedCompany === "") {
+            renderMembers(allMembers);
+            updateSummary(allMembers);
+            return;
+        }
+
+        const filteredMembers = allMembers.filter(member =>
+            member.companyName === selectedCompany || member.role === "ADMIN"
+        );
+
+        renderMembers(filteredMembers);
+        updateSummary(filteredMembers);
+    }
+
+    function updateSummary(members) {
+        document.getElementById("totalCount").innerText = members.length + "명";
+        document.getElementById("adminCount").innerText =
+            members.filter(member => member.role === "ADMIN").length + "명";
+        document.getElementById("ownerCount").innerText =
+            members.filter(member => member.role === "COMPANY_OWNER").length + "명";
+        document.getElementById("employeeCount").innerText =
+            members.filter(member => member.role === "EMPLOYEE").length + "명";
+    }
+
+    function renderMembers(members) {
+        const tbody = document.getElementById("memberBody");
+        tbody.innerHTML = "";
+
+        if (members.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="empty">등록된 회원이 없습니다.</td>
+                </tr>
+            `;
+            return;
+        }
+
+        members.forEach(member => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${member.name ?? "-"}</td>
+                    <td>${member.email ?? "-"}</td>
+                    <td>${member.companyName ?? "-"}</td>
+                    <td>${member.clientCode ?? "-"}</td>
+                    <td>${roleBadge(member.role)}</td>
+                    <td>${statusBadge(member.status)}</td>
+                    <td>
+                        ${
+                            member.role === "EMPLOYEE"
+                                ? `<button class="small-btn delete-member-btn"
+                                        onclick="deleteMember(${member.memberId})">
+                                    회원 탈퇴
+                                </button>`
+                                : ""
+                        }
+
+                        ${
+                            member.role === "COMPANY_OWNER"
+                                ? `<button class="small-btn delete-company-btn"
+                                        onclick="deleteCompany(${member.companyId})">
+                                    기업 탈퇴
+                                </button>`
+                                : ""
+                        }
+                    </td>
+                </tr>
+            `;
+        });
     }
 
     async function deleteMember(memberId) {
