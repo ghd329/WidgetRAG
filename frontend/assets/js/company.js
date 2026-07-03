@@ -1,6 +1,16 @@
 function initPage() {
   checkCompanyLogin();
   applyTheme();
+  applyCompanyName();
+}
+
+function applyCompanyName() {
+  const companyName = localStorage.getItem("companyName");
+  const label = document.getElementById("companyNameLabel");
+
+  if (companyName && label) {
+    label.innerText = companyName + " 관리자님";
+  }
 }
 
 function uploadFile() {
@@ -52,11 +62,4 @@ function saveTheme() {
   applyTheme();
 
   alert("디스플레이 모드가 저장되었습니다.");
-}
-
-function initPage() {
-
-    checkCompanyLogin();
-
-    applyTheme();
 }
