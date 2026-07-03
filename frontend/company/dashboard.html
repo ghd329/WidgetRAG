@@ -59,7 +59,7 @@
                 </div>
 
                 <div class="user-box">
-                    <span>기업 관리자님</span>
+                    <span id="companyNameLabel">기업 관리자님</span>
                     <button class="logout" onclick="logout()">로그아웃</button>
                 </div>
             </div>
@@ -139,7 +139,15 @@
 
         async function initDashboardPage() {
             initPage();
+            applyCompanyName();
             await loadDashboardData();
+        }
+
+        function applyCompanyName() {
+            const companyName = localStorage.getItem("companyName");
+            if (companyName) {
+                document.getElementById("companyNameLabel").innerText = companyName + " 관리자님";
+            }
         }
 
         async function loadDashboardData() {

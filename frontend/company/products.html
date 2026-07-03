@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Products</title>
 
-    <link rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
 
     <link rel="stylesheet" href="../assets/css/common.css">
     <link rel="stylesheet" href="../assets/css/company.css">
@@ -58,7 +58,7 @@
                 </div>
 
                 <div class="user-box">
-                    <span>기업 관리자님</span>
+                    <span id="companyNameLabel">기업 관리자님</span>
                     <button class="logout" onclick="logout()">로그아웃</button>
                 </div>
             </div>
@@ -118,9 +118,9 @@
         }
 
         async function loadProducts() {
-        const productListBody = document.getElementById("productListBody");
+            const productListBody = document.getElementById("productListBody");
 
-        productListBody.innerHTML = `
+            productListBody.innerHTML = `
             <tr>
                 <td colspan="8" style="text-align:center; color:#777;">
                     상품 목록을 불러오는 중입니다.
@@ -128,40 +128,40 @@
             </tr>
         `;
 
-        try {
-            const res = await fetch(`${BACKEND_BASE}/api/product-items`, {
-                method: "GET",
-                credentials: "include"
-            });
+            try {
+                const res = await fetch(`${BACKEND_BASE}/api/product-items`, {
+                    method: "GET",
+                    credentials: "include"
+                });
 
-            if (!res.ok) {
-                throw new Error(await res.text());
-            }
+                if (!res.ok) {
+                    throw new Error(await res.text());
+                }
 
-            const products = await res.json();
-            console.log("product items:", products);
+                const products = await res.json();
+                console.log("product items:", products);
 
-            productListBody.innerHTML = "";
+                productListBody.innerHTML = "";
 
-            if (!products || products.length === 0) {
-                productListBody.innerHTML = `
+                if (!products || products.length === 0) {
+                    productListBody.innerHTML = `
                     <tr>
                         <td colspan="8" style="text-align:center; color:#777;">
                             등록된 상품이 없습니다. 데이터 업로드 화면에서 CSV 파일을 업로드해주세요.
                         </td>
                     </tr>
                 `;
-                return;
-            }
+                    return;
+                }
 
-            products.forEach(product => {
-                const row = document.createElement("tr");
+                products.forEach(product => {
+                    const row = document.createElement("tr");
 
-                const categories = product.categories || [];
-                const categoryMain = categories[0] || "-";
-                const categorySub = categories[1] || "-";
+                    const categories = product.categories || [];
+                    const categoryMain = categories[0] || "-";
+                    const categorySub = categories[1] || "-";
 
-                row.innerHTML = `
+                    row.innerHTML = `
                     <td>${product.externalProductId || product.id || "-"}</td>
                     <td>${product.productName || "-"}</td>
                     <td>${product.price ? Number(product.price).toLocaleString() : "-"}</td>
@@ -174,43 +174,43 @@
                     </td>
                 `;
 
-                productListBody.appendChild(row);
-            });
+                    productListBody.appendChild(row);
+                });
 
-        } catch (error) {
-            console.error(error);
+            } catch (error) {
+                console.error(error);
 
-            productListBody.innerHTML = `
+                productListBody.innerHTML = `
                 <tr>
                     <td colspan="8" style="text-align:center; color:#777;">
                         상품 목록을 불러오지 못했습니다.
                     </td>
                 </tr>
             `;
-        }
-    }
-
-    async function deleteProductItem(itemId) {
-        if (!confirm("이 상품을 삭제하시겠습니까?")) return;
-
-        try {
-            const res = await fetch(`${BACKEND_BASE}/api/product-items/${itemId}`, {
-                method: "DELETE",
-                credentials: "include"
-            });
-
-            if (!res.ok) {
-                throw new Error(await res.text());
             }
-
-            await loadProducts();
-            alert("상품이 삭제되었습니다.");
-
-        } catch (error) {
-            console.error(error);
-            alert("상품 삭제 중 오류가 발생했습니다.\n" + error.message);
         }
-    }
+
+        async function deleteProductItem(itemId) {
+            if (!confirm("이 상품을 삭제하시겠습니까?")) return;
+
+            try {
+                const res = await fetch(`${BACKEND_BASE}/api/product-items/${itemId}`, {
+                    method: "DELETE",
+                    credentials: "include"
+                });
+
+                if (!res.ok) {
+                    throw new Error(await res.text());
+                }
+
+                await loadProducts();
+                alert("상품이 삭제되었습니다.");
+
+            } catch (error) {
+                console.error(error);
+                alert("상품 삭제 중 오류가 발생했습니다.\n" + error.message);
+            }
+        }
 
         function addProductManual() {
             const product_id = document.getElementById("productId").value.trim();
@@ -310,4 +310,5 @@
         }
     </script>
 </body>
+
 </html>
