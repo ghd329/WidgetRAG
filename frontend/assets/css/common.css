@@ -86,6 +86,10 @@ textarea {
     margin-top: 14px;
 }
 
+.login-message.pending {
+    color: #d97706;
+}
+
 input.error {
     border: 1px solid #ef4444 !important;
 }

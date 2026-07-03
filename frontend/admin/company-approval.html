@@ -8,6 +8,9 @@
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
 
+    <link rel="stylesheet" href="../assets/css/ui-feedback.css">
+    <script src="../assets/js/ui-feedback.js"></script>
+
     <style>
         * {
             margin: 0;
@@ -391,32 +394,43 @@
     }
 
     async function approveCompany(companyId) {
-        if (!confirm("해당 기업을 승인하시겠습니까?")) return;
+        const confirmed = await showConfirm("해당 기업을 승인하시겠습니까?", {
+            title: "기업 승인",
+            confirmText: "승인",
+            danger: false
+        });
+
+        if (!confirmed) return;
 
         const response = await fetch(`${API_BASE}/api/admin/companies/${companyId}/approve`, {
             method: "POST"
         });
 
         if (response.ok) {
-            alert("기업 승인 완료");
+            showToast("기업 승인 완료");
             loadCompanies();
         } else {
-            alert("기업 승인 실패");
+            showToast("기업 승인 실패", "error");
         }
     }
 
     async function rejectCompany(companyId) {
-        if (!confirm("해당 기업을 반려하시겠습니까?")) return;
+        const confirmed = await showConfirm("해당 기업을 반려하시겠습니까?", {
+            title: "기업 반려",
+            confirmText: "반려"
+        });
+
+        if (!confirmed) return;
 
         const response = await fetch(`${API_BASE}/api/admin/companies/${companyId}/reject`, {
             method: "POST"
         });
 
         if (response.ok) {
-            alert("기업 반려 완료");
+            showToast("기업 반려 완료");
             loadCompanies();
         } else {
-            alert("기업 반려 실패");
+            showToast("기업 반려 실패", "error");
         }
     }
 

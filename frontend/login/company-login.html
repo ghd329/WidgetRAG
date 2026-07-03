@@ -127,9 +127,10 @@
             errorBox.style.display = "block";
         }
 
-        function showLoginMessage(message) {
+        function showLoginMessage(message, type = "error") {
             const box = document.getElementById("loginMessage");
-            box.innerText = message;
+            box.innerHTML = message;
+            box.classList.toggle("pending", type === "pending");
             box.style.display = "block";
         }
 
@@ -163,8 +164,15 @@
                 });
 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(errorText);
+                    const errorBody = await response.json().catch(() => null);
+                    const serverMessage = errorBody?.message || "";
+
+                    if (serverMessage.includes("승인")) {
+                        showLoginMessage("관리자 승인 대기 중인 계정입니다.<br>승인 후 로그인해 주세요.", "pending");
+                    } else {
+                        showLoginMessage("이메일 또는 비밀번호가 올바르지 않습니다.");
+                    }
+                    return;
                 }
 
                 const result = await response.json();
@@ -195,7 +203,7 @@
 
             } catch (error) {
                 console.error(error);
-                showLoginMessage("이메일 또는 비밀번호가 올바르지 않거나 승인 대기 중입니다.");
+                showLoginMessage("로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
             }
         }
     </script>

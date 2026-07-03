@@ -329,6 +329,10 @@ body.dark-mode td {
     border-color: #4b5563;
 }
 
+body.dark-mode tr:hover {
+    background: #374151;
+}
+
 body.dark-mode .sidebar {
     background: #030712;
 }

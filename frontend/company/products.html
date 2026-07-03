@@ -10,10 +10,12 @@
 
     <link rel="stylesheet" href="../assets/css/common.css">
     <link rel="stylesheet" href="../assets/css/company.css">
+    <link rel="stylesheet" href="../assets/css/ui-feedback.css">
 
     <script src="../assets/js/auth.js"></script>
     <script src="../assets/js/api.js"></script>
     <script src="../assets/js/company.js"></script>
+    <script src="../assets/js/ui-feedback.js"></script>
 </head>
 
 <body onload="initProductsPage()">
@@ -68,9 +70,22 @@
 
                 <div class="form-grid">
                     <input id="productId" placeholder="상품 ID">
-                    <input id="productName" placeholder="상품명">
-                    <input id="productPrice" placeholder="가격">
-                    <input id="categoryMain" placeholder="대분류">
+
+                    <div>
+                        <input id="productName" placeholder="상품명">
+                        <p class="uif-field-error" id="productNameError"></p>
+                    </div>
+
+                    <div>
+                        <input id="productPrice" placeholder="가격">
+                        <p class="uif-field-error" id="productPriceError"></p>
+                    </div>
+
+                    <div>
+                        <input id="categoryMain" placeholder="대분류">
+                        <p class="uif-field-error" id="categoryMainError"></p>
+                    </div>
+
                     <input id="categorySub" placeholder="소분류">
                     <input id="productDesc" placeholder="상품 설명">
                     <input id="productUrl" placeholder="상품 URL">
@@ -191,7 +206,12 @@
         }
 
         async function deleteProductItem(itemId) {
-            if (!confirm("이 상품을 삭제하시겠습니까?")) return;
+            const confirmed = await showConfirm("이 상품을 삭제하시겠습니까?", {
+                title: "상품 삭제",
+                confirmText: "삭제"
+            });
+
+            if (!confirmed) return;
 
             try {
                 const res = await fetch(`${BACKEND_BASE}/api/product-items/${itemId}`, {
@@ -204,11 +224,11 @@
                 }
 
                 await loadProducts();
-                alert("상품이 삭제되었습니다.");
+                showToast("상품이 삭제되었습니다.");
 
             } catch (error) {
                 console.error(error);
-                alert("상품 삭제 중 오류가 발생했습니다.\n" + error.message);
+                showToast("상품 삭제 중 오류가 발생했습니다. " + error.message, "error");
             }
         }
 
@@ -221,8 +241,28 @@
             const description = document.getElementById("productDesc").value.trim();
             const url = document.getElementById("productUrl").value.trim();
 
-            if (!product_name || !price || !category_main) {
-                alert("상품명, 가격, 대분류는 필수 입력입니다.");
+            setFieldError("productName", "productNameError", "");
+            setFieldError("productPrice", "productPriceError", "");
+            setFieldError("categoryMain", "categoryMainError", "");
+
+            let hasError = false;
+
+            if (!product_name) {
+                setFieldError("productName", "productNameError", "상품명은 필수 입력입니다.");
+                hasError = true;
+            }
+
+            if (!price) {
+                setFieldError("productPrice", "productPriceError", "가격은 필수 입력입니다.");
+                hasError = true;
+            }
+
+            if (!category_main) {
+                setFieldError("categoryMain", "categoryMainError", "대분류는 필수 입력입니다.");
+                hasError = true;
+            }
+
+            if (hasError) {
                 return;
             }
 
@@ -251,62 +291,7 @@
 
             loadProducts();
 
-            alert("상품이 추가되었습니다.");
-        }
-
-        function deleteProduct(index) {
-            if (!confirm("이 상품을 삭제하시겠습니까?")) return;
-
-            const products = JSON.parse(localStorage.getItem("products")) || [];
-
-            products.splice(index, 1);
-
-            localStorage.setItem("products", JSON.stringify(products));
-
-            loadProducts();
-        }
-
-        function editProduct(index) {
-            const products = JSON.parse(localStorage.getItem("products")) || [];
-            const product = products[index];
-
-            const newId = prompt("상품 ID를 수정하세요.", product.product_id || "");
-            if (newId === null) return;
-
-            const newName = prompt("상품명을 수정하세요.", product.product_name || "");
-            if (newName === null) return;
-
-            const newPrice = prompt("가격을 수정하세요.", product.price || "");
-            if (newPrice === null) return;
-
-            const newCategoryMain = prompt("대분류를 수정하세요.", product.category_main || "");
-            if (newCategoryMain === null) return;
-
-            const newCategorySub = prompt("소분류를 수정하세요.", product.category_sub || "");
-            if (newCategorySub === null) return;
-
-            const newDesc = prompt("설명을 수정하세요.", product.description || "");
-            if (newDesc === null) return;
-
-            const newUrl = prompt("URL을 수정하세요.", product.url || "");
-            if (newUrl === null) return;
-
-            products[index] = {
-                uploadId: product.uploadId || "manual",
-                product_id: newId || "-",
-                product_name: newName || "-",
-                price: newPrice || "-",
-                category_main: newCategoryMain || "-",
-                category_sub: newCategorySub || "-",
-                description: newDesc || "-",
-                url: newUrl || "#"
-            };
-
-            localStorage.setItem("products", JSON.stringify(products));
-
-            loadProducts();
-
-            alert("상품이 수정되었습니다.");
+            showToast("상품이 추가되었습니다.");
         }
     </script>
 </body>
