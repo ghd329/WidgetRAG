@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>회원 관리</title>
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: "Pretendard", "Noto Sans KR", sans-serif;
+            background: #f4f7fb;
+            color: #1f2937;
+        }
+
+        .layout { display: flex; min-height: 100vh; }
+
+        .sidebar {
+            width: 260px;
+            background: #172436;
+            color: white;
+            padding: 35px 24px;
+        }
+
+        .sidebar h2 {
+            font-size: 30px;
+            margin-bottom: 55px;
+            padding-left: 12px;
+        }
+
+        .sidebar ul { list-style: none; }
+
+        .sidebar li {
+            padding: 17px 18px;
+            margin-bottom: 18px;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .sidebar li:hover { background: rgba(255,255,255,0.08); }
+
+        .sidebar li.active {
+            background: #2563eb;
+            box-shadow: 0 8px 20px rgba(37,99,235,0.35);
+        }
+
+        .main { flex: 1; padding: 46px 42px; }
+
+        .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 34px;
+        }
+
+        .title h1 { font-size: 34px; margin-bottom: 12px; }
+        .title p { color: #6b7280; font-size: 16px; }
+
+        .admin-box {
+            background: white;
+            padding: 14px 22px;
+            border-radius: 14px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+            font-weight: 700;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 18px;
+            margin-bottom: 34px;
+        }
+
+        .summary-card {
+            background: white;
+            border-radius: 18px;
+            padding: 26px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 8px 22px rgba(0,0,0,0.06);
+        }
+
+        .icon-circle {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+        }
+
+        .blue { background: #dbeafe; color: #2563eb; }
+        .green { background: #dcfce7; color: #16a34a; }
+        .purple { background: #ede9fe; color: #7c3aed; }
+        .orange { background: #ffedd5; color: #f97316; }
+
+        .summary-card span {
+            color: #374151;
+            font-weight: 700;
+        }
+
+        .summary-card strong {
+            display: block;
+            margin-top: 8px;
+            font-size: 28px;
+            color: #2563eb;
+        }
+
+        .table-card {
+            background: white;
+            border-radius: 20px;
+            padding: 34px;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.07);
+        }
+
+        .table-card h2 { font-size: 22px; margin-bottom: 24px; }
+
+        table { width: 100%; border-collapse: collapse; }
+
+        thead { background: #f1f5f9; }
+
+        th {
+            padding: 18px;
+            text-align: left;
+            font-size: 15px;
+        }
+
+        td {
+            padding: 20px 18px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 15px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 7px 14px;
+            border-radius: 999px;
+            font-weight: 800;
+            font-size: 13px;
+        }
+
+        .role-admin { background: #ede9fe; color: #7c3aed; }
+        .role-owner { background: #dbeafe; color: #2563eb; }
+        .role-employee { background: #dcfce7; color: #16a34a; }
+
+        .status-active { background: #dcfce7; color: #16a34a; }
+        .status-pending { background: #fff7ed; color: #f97316; }
+        .status-rejected { background: #fee2e2; color: #dc2626; }
+
+        .empty {
+            text-align: center;
+            color: #777;
+            padding: 40px;
+        }
+
+        .small-btn {
+            border: none;
+            padding: 7px 11px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-right: 4px;
+        }
+
+        .delete-member-btn {
+            background: #fee2e2;
+            color: #dc2626;
+            border: 1px solid #fca5a5;
+        }
+
+        .delete-company-btn {
+            background: #ffedd5;
+            color: #ea580c;
+            border: 1px solid #fdba74;
+        }
+    </style>
+</head>
+
+<body>
+<div class="layout">
+
+    <aside class="sidebar">
+        <h2>Chatbot</h2>
+        <ul>
+            <li onclick="location.href='company-approval.html'">🏢 기업 승인 관리</li>
+            <li class="active">👥 회원 관리</li>
+            <li onclick="logout()">🚪 로그아웃</li>
+        </ul>
+    </aside>
+
+    <main class="main">
+        <div class="top">
+            <div class="title">
+                <h1>회원 관리</h1>
+                <p>전체 관리자, 기업 대표, 일반 사원 계정을 확인할 수 있습니다.</p>
+            </div>
+
+            <div class="admin-box">
+                <i class="fa-regular fa-user"></i>
+                관리자님
+            </div>
+        </div>
+
+        <section class="summary">
+            <div class="summary-card">
+                <div class="icon-circle blue">👥</div>
+                <div>
+                    <span>전체 회원</span>
+                    <strong id="totalCount">0명</strong>
+                </div>
+            </div>
+
+            <div class="summary-card">
+                <div class="icon-circle purple">🛡️</div>
+                <div>
+                    <span>관리자</span>
+                    <strong id="adminCount">0명</strong>
+                </div>
+            </div>
+
+            <div class="summary-card">
+                <div class="icon-circle orange">🏢</div>
+                <div>
+                    <span>기업 대표</span>
+                    <strong id="ownerCount">0명</strong>
+                </div>
+            </div>
+
+            <div class="summary-card">
+                <div class="icon-circle green">🙋</div>
+                <div>
+                    <span>일반 사원</span>
+                    <strong id="employeeCount">0명</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="table-card">
+            <h2>회원 목록</h2>
+
+            <table>
+                <thead>
+                <tr>
+                    <th>이름</th>
+                    <th>이메일</th>
+                    <th>회사명</th>
+                    <th>회사 코드</th>
+                    <th>권한</th>
+                    <th>상태</th>
+                    <th>관리</th>
+                </tr>
+                </thead>
+                <tbody id="memberBody"></tbody>
+            </table>
+        </section>
+    </main>
+
+</div>
+
+<script>
+    const API_BASE = "http://localhost:8080";
+
+    function roleBadge(role) {
+        if (role === "ADMIN") return `<span class="badge role-admin">ADMIN</span>`;
+        if (role === "COMPANY_OWNER") return `<span class="badge role-owner">COMPANY_OWNER</span>`;
+        return `<span class="badge role-employee">EMPLOYEE</span>`;
+    }
+
+    function statusBadge(status) {
+        if (status === "ACTIVE") return `<span class="badge status-active">ACTIVE</span>`;
+        if (status === "PENDING") return `<span class="badge status-pending">PENDING</span>`;
+        return `<span class="badge status-rejected">REJECTED</span>`;
+    }
+
+    async function loadMembers() {
+        const tbody = document.getElementById("memberBody");
+
+        try {
+            const response = await fetch(`${API_BASE}/api/admin/members`);
+
+            if (!response.ok) {
+                throw new Error("회원 목록을 불러오지 못했습니다.");
+            }
+
+            const members = await response.json();
+
+            document.getElementById("totalCount").innerText = members.length + "명";
+            document.getElementById("adminCount").innerText =
+                members.filter(m => m.role === "ADMIN").length + "명";
+            document.getElementById("ownerCount").innerText =
+                members.filter(m => m.role === "COMPANY_OWNER").length + "명";
+            document.getElementById("employeeCount").innerText =
+                members.filter(m => m.role === "EMPLOYEE").length + "명";
+
+            tbody.innerHTML = "";
+
+            if (members.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="empty">등록된 회원이 없습니다.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            members.forEach(member => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${member.name ?? "-"}</td>
+                        <td>${member.email}</td>
+                        <td>${member.companyName}</td>
+                        <td>${member.clientCode}</td>
+                        <td>${roleBadge(member.role)}</td>
+                        <td>${statusBadge(member.status)}</td>
+                        <td>
+                            ${
+                                member.role === "EMPLOYEE"
+                                    ? `<button class="small-btn delete-member-btn"
+                                            onclick="deleteMember(${member.memberId})">
+                                        회원 탈퇴
+                                    </button>`
+                                    : ""
+                            }
+
+                            ${
+                                member.role === "COMPANY_OWNER"
+                                    ? `<button class="small-btn delete-company-btn"
+                                            onclick="deleteCompany(${member.companyId})">
+                                        기업 탈퇴
+                                    </button>`
+                                    : ""
+                            }
+                        </td>
+                    </tr>
+                `;
+            });
+
+        } catch (error) {
+            console.error(error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="empty" style="color:red;">
+                        회원 목록을 불러오지 못했습니다.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    async function deleteMember(memberId) {
+        if (!confirm("해당 회원을 탈퇴 처리하시겠습니까?")) return;
+
+        const response = await fetch(`${API_BASE}/api/admin/members/${memberId}`, {
+            method: "DELETE"
+        });
+
+        if (response.ok) {
+            alert("회원 탈퇴 처리 완료");
+            loadMembers();
+        } else {
+            alert("회원 탈퇴 실패");
+        }
+    }
+
+    async function deleteCompany(companyId) {
+        if (!confirm("해당 기업을 탈퇴 처리하시겠습니까? 소속 회원도 함께 삭제됩니다.")) return;
+
+        const response = await fetch(`${API_BASE}/api/admin/companies/${companyId}`, {
+            method: "DELETE"
+        });
+
+        if (response.ok) {
+            alert("기업 탈퇴 처리 완료");
+            loadMembers();
+        } else {
+            alert("기업 탈퇴 실패");
+        }
+    }
+
+    function logout() {
+        localStorage.clear();
+        location.href = "../login/company-login.html";
+    }
+
+    loadMembers();
+</script>
+
+</body>
+</html>

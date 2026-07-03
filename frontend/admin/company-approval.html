@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>기업 승인 관리</title>
+
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Pretendard", "Noto Sans KR", sans-serif;
+            background: #f4f7fb;
+            color: #1f2937;
+        }
+
+        .layout {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 260px;
+            background: #172436;
+            color: white;
+            padding: 35px 24px;
+        }
+
+        .sidebar h2 {
+            font-size: 30px;
+            margin-bottom: 55px;
+            padding-left: 12px;
+        }
+
+        .sidebar ul {
+            list-style: none;
+        }
+
+        .sidebar li {
+            padding: 17px 18px;
+            margin-bottom: 18px;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .sidebar li:hover {
+            background: rgba(255,255,255,0.08);
+        }
+
+        .sidebar li.active {
+            background: #2563eb;
+            box-shadow: 0 8px 20px rgba(37,99,235,0.35);
+        }
+
+        .main {
+            flex: 1;
+            padding: 46px 42px;
+        }
+
+        .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 34px;
+        }
+
+        .title h1 {
+            font-size: 34px;
+            margin-bottom: 12px;
+        }
+
+        .title p {
+            color: #6b7280;
+            font-size: 16px;
+        }
+
+        .admin-box {
+            background: white;
+            padding: 14px 22px;
+            border-radius: 14px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+            font-weight: 700;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 18px;
+            margin-bottom: 34px;
+        }
+
+        .summary-card {
+            background: white;
+            border-radius: 18px;
+            padding: 26px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 8px 22px rgba(0,0,0,0.06);
+        }
+
+        .icon-circle {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+        }
+
+        .blue {
+            background: #dbeafe;
+            color: #2563eb;
+        }
+
+        .green {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        .red {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .purple {
+            background: #ede9fe;
+            color: #7c3aed;
+        }
+
+        .summary-card span {
+            color: #374151;
+            font-weight: 700;
+        }
+
+        .summary-card strong {
+            display: block;
+            margin-top: 8px;
+            font-size: 28px;
+            color: #2563eb;
+        }
+
+        .table-card {
+            background: white;
+            border-radius: 20px;
+            padding: 34px;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.07);
+        }
+
+        .table-card h2 {
+            font-size: 22px;
+            margin-bottom: 24px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f1f5f9;
+        }
+
+        th {
+            padding: 18px;
+            text-align: left;
+            font-size: 15px;
+        }
+
+        td {
+            padding: 20px 18px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 15px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 7px 14px;
+            border-radius: 999px;
+            background: #fff7ed;
+            color: #f97316;
+            font-weight: 800;
+            font-size: 13px;
+            border: 1px solid #fdba74;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            border: none;
+            padding: 11px 18px;
+            border-radius: 11px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .approve-btn {
+            background: #dcfce7;
+            color: #16a34a;
+            border: 1px solid #86efac;
+        }
+
+        .reject-btn {
+            background: #fee2e2;
+            color: #dc2626;
+            border: 1px solid #fca5a5;
+        }
+
+        .empty {
+            text-align: center;
+            color: #777;
+            padding: 40px;
+        }
+
+        footer {
+            margin-top: 120px;
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+<div class="layout">
+
+    <aside class="sidebar">
+        <h2>Chatbot</h2>
+        <ul>
+            <li onclick="location.href='dashboard.html'">📊 관리자 홈</li>
+            <li class="active">🏢 기업 승인 관리</li>
+            <li onclick="location.href='member.html'">👥 회원 관리</li>
+            <li onclick="logout()">🚪 로그아웃</li>
+        </ul>
+    </aside>
+
+    <main class="main">
+        <div class="top">
+            <div class="title">
+                <h1>기업 승인 관리</h1>
+                <p>기업 회원가입 신청을 승인하거나 반려할 수 있습니다.</p>
+            </div>
+
+            <div class="admin-box">
+                <i class="fa-regular fa-user"></i>
+                관리자님
+            </div>
+        </div>
+
+        <section class="summary">
+            <div class="summary-card">
+                <div class="icon-circle blue">🏢</div>
+                <div>
+                    <span>승인 대기 기업</span>
+                    <strong id="pendingCount">0개</strong>
+                </div>
+            </div>
+
+            <div class="summary-card">
+                <div class="icon-circle green">✓</div>
+                <div>
+                    <span>총 승인 기업</span>
+                    <strong>0개</strong>
+                </div>
+            </div>
+
+            <div class="summary-card">
+                <div class="icon-circle red">×</div>
+                <div>
+                    <span>총 반려 기업</span>
+                    <strong>0개</strong>
+                </div>
+            </div>
+
+            <div class="summary-card">
+                <div class="icon-circle purple">⟳</div>
+                <div>
+                    <span>최근 업데이트</span>
+                    <strong id="updatedTime">방금 전</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="table-card">
+            <h2>승인 대기 목록</h2>
+
+            <table>
+                <thead>
+                <tr>
+                    <th>회사명</th>
+                    <th>대표자</th>
+                    <th>대표 이메일</th>
+                    <th>회사 코드</th>
+                    <th>상태</th>
+                    <th>관리</th>
+                </tr>
+                </thead>
+                <tbody id="companyBody"></tbody>
+            </table>
+        </section>
+
+        <footer>
+            © 2026 Chatbot Admin. All rights reserved.
+        </footer>
+    </main>
+
+</div>
+
+<script>
+    const API_BASE = "http://localhost:8080";
+
+    async function loadCompanies() {
+        const tbody = document.getElementById("companyBody");
+
+        try {
+            const response = await fetch(`${API_BASE}/api/admin/companies/pending`);
+
+            if (!response.ok) {
+                throw new Error("기업 목록을 불러오지 못했습니다.");
+            }
+
+            const companies = await response.json();
+
+            document.getElementById("pendingCount").innerText = companies.length + "개";
+            document.getElementById("updatedTime").innerText = "방금 전";
+
+            tbody.innerHTML = "";
+
+            if (companies.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="empty">
+                            승인 대기 중인 기업이 없습니다.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            companies.forEach(company => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${company.companyName}</td>
+                        <td>${company.ownerName ?? "-"}</td>
+                        <td>${company.ownerEmail ?? "-"}</td>
+                        <td>${company.clientCode}</td>
+                        <td><span class="badge">${company.status}</span></td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn approve-btn" onclick="approveCompany(${company.companyId})">
+                                    ✓ 승인
+                                </button>
+                                <button class="btn reject-btn" onclick="rejectCompany(${company.companyId})">
+                                    ✕ 반려
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+        } catch (error) {
+            console.error(error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="empty" style="color:red;">
+                        기업 목록을 불러오지 못했습니다.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    async function approveCompany(companyId) {
+        if (!confirm("해당 기업을 승인하시겠습니까?")) return;
+
+        const response = await fetch(`${API_BASE}/api/admin/companies/${companyId}/approve`, {
+            method: "POST"
+        });
+
+        if (response.ok) {
+            alert("기업 승인 완료");
+            loadCompanies();
+        } else {
+            alert("기업 승인 실패");
+        }
+    }
+
+    async function rejectCompany(companyId) {
+        if (!confirm("해당 기업을 반려하시겠습니까?")) return;
+
+        const response = await fetch(`${API_BASE}/api/admin/companies/${companyId}/reject`, {
+            method: "POST"
+        });
+
+        if (response.ok) {
+            alert("기업 반려 완료");
+            loadCompanies();
+        } else {
+            alert("기업 반려 실패");
+        }
+    }
+
+    loadCompanies();
+    function logout() {
+
+        localStorage.clear();
+
+        location.href = "../login/company-login.html";
+
+    }
+</script>
+
+</body>
+</html>
