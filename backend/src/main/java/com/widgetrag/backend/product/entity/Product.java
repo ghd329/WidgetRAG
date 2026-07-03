@@ -57,6 +57,21 @@ public class Product {
     @Column(name = "status", length = 20, nullable = false)
     private String status; // UPLOADED / VECTORIZED / FAILED
 
+    @Column(name = "created_count", nullable = false)
+    private int createdCount = 0;
+
+    @Column(name = "updated_count", nullable = false)
+    private int updatedCount = 0;
+
+    @Column(name = "duplicate_count", nullable = false)
+    private int duplicateCount = 0;
+
+    public void updateUploadResult(int createdCount, int updatedCount, int duplicateCount) {
+        this.createdCount = createdCount;
+        this.updatedCount = updatedCount;
+        this.duplicateCount = duplicateCount;
+    }
+
     public static Product create(Company company, Member uploadedBy, String fileName,
                                  String fileType, String storagePath) {
         Product product = new Product();

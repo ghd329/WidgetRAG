@@ -237,6 +237,7 @@
                             <th>파일명</th>
                             <th>형식</th>
                             <th>업로드 일시</th>
+                            <th>업로드 결과</th>
                             <th>상태</th>
                             <th>관리</th>
                         </tr>
@@ -259,6 +260,17 @@
 
     let currentPreviewData = null;
     let currentFile = null;
+
+    function formatUploadTime(uploadedAt) {
+        if (!uploadedAt) return "-";
+
+        const date = new Date(uploadedAt);
+
+        const hour = String(date.getHours()).padStart(2, "0");
+        const minute = String(date.getMinutes()).padStart(2, "0");
+
+        return `${hour}:${minute}`;
+    }
 
     function initUploadPage() {
         initPage();
@@ -368,7 +380,12 @@
                 row.innerHTML = `
                     <td>${item.fileName || "-"}</td>
                     <td>${item.fileType || "-"}</td>
-                    <td>${formatDateTime(item.uploadedAt)}</td>
+                    <td>${formatUploadTime(item.uploadedAt)}</td>
+                    <td>
+                        생성 ${item.createdCount ?? 0}건,
+                        수정 ${item.updatedCount ?? 0}건,
+                        중복 ${item.duplicateCount ?? 0}건
+                    </td>
                     <td>${item.status || "-"}</td>
                     <td>
                         <button class="delete-btn" onclick="deleteUpload(${item.fileId})">
