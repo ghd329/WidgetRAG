@@ -8,10 +8,12 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link rel="stylesheet" href="../assets/css/common.css">
     <link rel="stylesheet" href="../assets/css/company.css">
+    <link rel="stylesheet" href="../assets/css/ui-feedback.css">
 
     <script src="../assets/js/auth.js"></script>
     <script src="../assets/js/api.js"></script>
     <script src="../assets/js/company.js"></script>
+    <script src="../assets/js/ui-feedback.js"></script>
 
     <style>
         .code-box {
@@ -191,12 +193,12 @@
 
             try {
                 await navigator.clipboard.writeText(scriptCode);
-                alert("위젯 설치 코드가 복사되었습니다.");
+                showToast("위젯 설치 코드가 복사되었습니다.");
             } catch (error) {
                 const textarea = document.getElementById("scriptCode");
                 textarea.select();
                 document.execCommand("copy");
-                alert("위젯 설치 코드가 복사되었습니다.");
+                showToast("위젯 설치 코드가 복사되었습니다.");
             }
         }
     </script>

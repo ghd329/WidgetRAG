@@ -9,10 +9,12 @@
 
     <link rel="stylesheet" href="../assets/css/common.css">
     <link rel="stylesheet" href="../assets/css/company.css">
+    <link rel="stylesheet" href="../assets/css/ui-feedback.css">
 
     <script src="../assets/js/auth.js"></script>
     <script src="../assets/js/api.js"></script>
     <script src="../assets/js/company.js"></script>
+    <script src="../assets/js/ui-feedback.js"></script>
 
     <style>
         body.dark-mode {
@@ -102,8 +104,13 @@
                 <h3>비밀번호 변경</h3>
 
                 <input type="password" id="currentPassword" placeholder="현재 비밀번호" style="margin-top: 15px;">
+                <p class="uif-field-error" id="currentPasswordError"></p>
+
                 <input type="password" id="newPassword" placeholder="새 비밀번호">
+                <p class="uif-field-error" id="newPasswordError"></p>
+
                 <input type="password" id="newPasswordConfirm" placeholder="새 비밀번호 확인">
+                <p class="uif-field-error" id="newPasswordConfirmError"></p>
 
                 <button class="primary-btn" onclick="changePassword()">
                     변경하기
@@ -138,6 +145,24 @@
 
     </div>
 
+    <div class="uif-modal-overlay" id="withdrawModal">
+        <div class="uif-modal-box">
+            <h3>회원탈퇴</h3>
+            <p>
+                정말 회원탈퇴를 진행하시겠습니까?
+                등록된 상품 데이터와 챗봇 데이터가 모두 삭제되며 복구할 수 없습니다.
+            </p>
+
+            <input type="password" id="withdrawPassword" placeholder="현재 비밀번호" style="margin-top: 4px;">
+            <p class="uif-field-error" id="withdrawPasswordError"></p>
+
+            <div class="uif-modal-actions">
+                <button class="uif-btn uif-btn-secondary" onclick="closeWithdrawModal()">취소</button>
+                <button class="uif-btn uif-btn-danger" onclick="confirmWithdraw()">탈퇴하기</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         function initSettingsPage() {
             checkCompanyLogin();
@@ -159,7 +184,7 @@
             localStorage.setItem("theme", theme);
             applyTheme();
 
-            alert("디스플레이 모드가 저장되었습니다.");
+            showToast("디스플레이 모드가 저장되었습니다.");
         }
 
         function applyTheme() {
@@ -180,18 +205,34 @@
             const newPassword = document.getElementById("newPassword").value.trim();
             const newPasswordConfirm = document.getElementById("newPasswordConfirm").value.trim();
 
-            if (!currentPassword || !newPassword || !newPasswordConfirm) {
-                alert("비밀번호를 모두 입력해 주세요.");
-                return;
+            setFieldError("currentPassword", "currentPasswordError", "");
+            setFieldError("newPassword", "newPasswordError", "");
+            setFieldError("newPasswordConfirm", "newPasswordConfirmError", "");
+
+            let hasError = false;
+
+            if (!currentPassword) {
+                setFieldError("currentPassword", "currentPasswordError", "현재 비밀번호를 입력해 주세요.");
+                hasError = true;
             }
 
-            if (newPassword !== newPasswordConfirm) {
-                alert("새 비밀번호가 일치하지 않습니다.");
-                return;
+            if (!newPassword) {
+                setFieldError("newPassword", "newPasswordError", "새 비밀번호를 입력해 주세요.");
+                hasError = true;
+            } else if (!passwordRegex.test(newPassword)) {
+                setFieldError("newPassword", "newPasswordError", "비밀번호는 영문, 숫자, 특수문자를 포함한 8~20자여야 합니다.");
+                hasError = true;
             }
 
-            if (!passwordRegex.test(newPassword)) {
-                alert("비밀번호는 영문, 숫자, 특수문자를 포함한 8~20자여야 합니다.");
+            if (!newPasswordConfirm) {
+                setFieldError("newPasswordConfirm", "newPasswordConfirmError", "새 비밀번호 확인을 입력해 주세요.");
+                hasError = true;
+            } else if (newPassword && newPassword !== newPasswordConfirm) {
+                setFieldError("newPasswordConfirm", "newPasswordConfirmError", "새 비밀번호가 일치하지 않습니다.");
+                hasError = true;
+            }
+
+            if (hasError) {
                 return;
             }
 
@@ -210,33 +251,41 @@
             });
 
             if (response.ok) {
-                alert("비밀번호가 변경되었습니다. 다시 로그인해 주세요.");
+                showToast("비밀번호가 변경되었습니다. 다시 로그인해 주세요.");
                 localStorage.clear();
-                location.href = "../login/company-login.html";
+
+                setTimeout(() => {
+                    location.href = "../login/company-login.html";
+                }, 1500);
             } else {
                 const errorText = await response.text();
 
                 if (errorText.includes("현재 비밀번호")) {
-                    alert("현재 비밀번호가 일치하지 않습니다.");
+                    setFieldError("currentPassword", "currentPasswordError", "현재 비밀번호가 일치하지 않습니다.");
                 } else if (errorText.includes("새 비밀번호")) {
-                    alert("새 비밀번호가 일치하지 않습니다.");
+                    setFieldError("newPasswordConfirm", "newPasswordConfirmError", "새 비밀번호가 일치하지 않습니다.");
                 } else {
-                    alert("비밀번호 변경에 실패했습니다.");
+                    showToast("비밀번호 변경에 실패했습니다.", "error");
                 }
             }
         }
 
-        async function withdrawMember() {
-            const memberId = localStorage.getItem("memberId");
+        function withdrawMember() {
+            document.getElementById("withdrawPassword").value = "";
+            setFieldError("withdrawPassword", "withdrawPasswordError", "");
+            document.getElementById("withdrawModal").classList.add("show");
+        }
 
-            const password = prompt("회원탈퇴를 진행하려면 현재 비밀번호를 입력해 주세요.");
+        function closeWithdrawModal() {
+            document.getElementById("withdrawModal").classList.remove("show");
+        }
+
+        async function confirmWithdraw() {
+            const memberId = localStorage.getItem("memberId");
+            const password = document.getElementById("withdrawPassword").value.trim();
 
             if (!password) {
-                alert("회원탈퇴가 취소되었습니다.");
-                return;
-            }
-
-            if (!confirm("정말 회원탈퇴를 진행하시겠습니까?")) {
+                setFieldError("withdrawPassword", "withdrawPasswordError", "현재 비밀번호를 입력해 주세요.");
                 return;
             }
 
@@ -253,11 +302,15 @@
             });
 
             if (response.ok) {
-                alert("회원탈퇴가 완료되었습니다.");
+                closeWithdrawModal();
+                showToast("회원탈퇴가 완료되었습니다.");
                 localStorage.clear();
-                location.href = "../login/company-login.html";
+
+                setTimeout(() => {
+                    location.href = "../login/company-login.html";
+                }, 1500);
             } else {
-                alert("회원탈퇴에 실패했습니다. 비밀번호를 확인해 주세요.");
+                setFieldError("withdrawPassword", "withdrawPasswordError", "비밀번호가 일치하지 않습니다.");
             }
         }
     </script>
