@@ -4,6 +4,8 @@ import com.widgetrag.backend.chat.exception.InvalidClientCodeException;
 import com.widgetrag.backend.company.exception.CompanyNotFoundException;
 import com.widgetrag.backend.member.exception.DuplicateEmailException;
 import com.widgetrag.backend.member.exception.InvalidCredentialsException;
+import com.widgetrag.backend.member.exception.MemberAccessDeniedException;
+import com.widgetrag.backend.member.exception.MemberNotFoundException;
 import com.widgetrag.backend.product.exception.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -95,5 +97,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleTempFileNotFound(TempFileNotFoundException e) {
         return ResponseEntity.status(HttpStatus.GONE)
                 .body(new ErrorResponse(e.getMessage(), HttpStatus.GONE.value(), LocalDateTime.now()));
+    }
+
+    @ExceptionHandler(MemberNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleMemberNotFound(MemberNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse(e.getMessage(), HttpStatus.NOT_FOUND.value(), LocalDateTime.now()));
+    }
+
+    @ExceptionHandler(MemberAccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleMemberAccessDenied(MemberAccessDeniedException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ErrorResponse(e.getMessage(), HttpStatus.FORBIDDEN.value(), LocalDateTime.now()));
     }
 }

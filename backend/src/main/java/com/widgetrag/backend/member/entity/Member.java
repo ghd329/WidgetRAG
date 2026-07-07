@@ -45,7 +45,7 @@ public class Member {
         member.password = encodedPassword;
         member.name = name;
         member.role = Role.EMPLOYEE;
-        member.status = MemberStatus.ACTIVE;
+        member.status = MemberStatus.PENDING;
         return member;
     }
 

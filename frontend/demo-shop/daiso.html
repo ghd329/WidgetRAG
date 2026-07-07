@@ -294,6 +294,7 @@
 
 <script>
     const API_BASE = "http://localhost:8080";
+    const CLIENT_CODE = "shop_a3bdb59c";
     let productsCache = [];
 
     function scrollToProducts() {
@@ -392,9 +393,8 @@
         try {
             productGrid.innerHTML = `<div class="empty">상품을 불러오는 중입니다.</div>`;
 
-            const response = await fetch(`${API_BASE}/api/product-items`, {
-                method: "GET",
-                credentials: "include"
+            const response = await fetch(`${API_BASE}/api/product-items/public/${CLIENT_CODE}`, {
+                method: "GET"
             });
 
             if (!response.ok) {

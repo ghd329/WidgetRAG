@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>사원 승인 관리</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+
+    <link rel="stylesheet" href="../assets/css/common.css">
+    <link rel="stylesheet" href="../assets/css/company.css">
+    <link rel="stylesheet" href="../assets/css/ui-feedback.css">
+
+    <script src="../assets/js/auth.js"></script>
+    <script src="../assets/js/api.js"></script>
+    <script src="../assets/js/company.js"></script>
+    <script src="../assets/js/ui-feedback.js"></script>
+</head>
+
+<body onload="initMembersPage()">
+    <div class="company-layout">
+
+        <aside class="sidebar">
+            <h2>Biz Chatbot</h2>
+
+            <ul>
+                <li onclick="location.href='dashboard.html'">
+                    <i class="fa-solid fa-chart-line"></i>관리자 홈
+                </li>
+
+                <li onclick="location.href='upload.html'">
+                    <i class="fa-solid fa-file-arrow-up"></i>데이터 업로드
+                </li>
+
+                <li onclick="location.href='products.html'">
+                    <i class="fa-solid fa-box"></i>상품 관리
+                </li>
+
+                <li onclick="location.href='questions.html'">
+                    <i class="fa-solid fa-comments"></i>고객 질문 관리
+                </li>
+
+                <li class="active owner-only" onclick="location.href='members.html'">
+                    <i class="fa-solid fa-user-check"></i>사원 승인 관리
+                </li>
+
+                <li onclick="location.href='script.html'">
+                    <i class="fa-solid fa-code"></i>위젯 설치 코드
+                </li>
+
+                <li onclick="location.href='settings.html'">
+                    <i class="fa-solid fa-gear"></i>설정
+                </li>
+            </ul>
+        </aside>
+
+        <main class="main">
+            <div class="top">
+                <div>
+                    <h1>사원 승인 관리</h1>
+                    <p>우리 회사에 합류 신청한 사원 계정을 승인하거나 반려할 수 있습니다.</p>
+                </div>
+
+                <div class="user-box">
+                    <span id="companyNameLabel">기업 관리자님</span>
+                    <button class="logout" onclick="logout()">로그아웃</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>이름</th>
+                            <th>이메일</th>
+                            <th>상태</th>
+                            <th>관리</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="memberListBody">
+                        <tr>
+                            <td colspan="4" style="text-align:center; color:#777;">
+                                승인 대기 중인 사원이 없습니다.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+
+    </div>
+
+    <script>
+        function initMembersPage() {
+            initPage();
+
+            if (localStorage.getItem("role") !== "COMPANY_OWNER") {
+                showToast("기업 대표 계정만 접근할 수 있습니다.", "error");
+                setTimeout(() => location.href = "dashboard.html", 1000);
+                return;
+            }
+
+            loadPendingMembers();
+        }
+
+        async function loadPendingMembers() {
+            const memberListBody = document.getElementById("memberListBody");
+
+            memberListBody.innerHTML = `
+                <tr>
+                    <td colspan="4" style="text-align:center; color:#777;">
+                        목록을 불러오는 중입니다.
+                    </td>
+                </tr>
+            `;
+
+            try {
+                const res = await fetch(`${BACKEND_BASE}/api/company/members/pending`, {
+                    method: "GET",
+                    credentials: "include"
+                });
+
+                if (!res.ok) {
+                    throw new Error(await res.text());
+                }
+
+                const members = await res.json();
+
+                memberListBody.innerHTML = "";
+
+                if (!members || members.length === 0) {
+                    memberListBody.innerHTML = `
+                        <tr>
+                            <td colspan="4" style="text-align:center; color:#777;">
+                                승인 대기 중인 사원이 없습니다.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                members.forEach(member => {
+                    const row = document.createElement("tr");
+
+                    row.innerHTML = `
+                        <td>${member.name || "-"}</td>
+                        <td>${member.email}</td>
+                        <td>${member.status}</td>
+                        <td>
+                            <div style="display:flex; gap:8px;">
+                                <button class="primary-btn" onclick="approveMember(${member.memberId}, this)">승인</button>
+                                <button class="delete" onclick="rejectMember(${member.memberId}, this)">반려</button>
+                            </div>
+                        </td>
+                    `;
+
+                    memberListBody.appendChild(row);
+                });
+
+            } catch (error) {
+                console.error(error);
+
+                memberListBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" style="text-align:center; color:#777;">
+                            사원 목록을 불러오지 못했습니다.
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        async function approveMember(memberId, btn) {
+            const confirmed = await showConfirm("이 사원의 합류를 승인하시겠습니까?", {
+                title: "사원 승인",
+                confirmText: "승인",
+                danger: false
+            });
+
+            if (!confirmed) return;
+
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${BACKEND_BASE}/api/company/members/${memberId}/approve`, {
+                    method: "POST",
+                    credentials: "include"
+                });
+
+                if (!res.ok) {
+                    throw new Error(await res.text());
+                }
+
+                showToast("사원을 승인했습니다.");
+                await loadPendingMembers();
+
+            } catch (error) {
+                console.error(error);
+                showToast("사원 승인 중 오류가 발생했습니다.", "error");
+                btn.disabled = false;
+            }
+        }
+
+        async function rejectMember(memberId, btn) {
+            const confirmed = await showConfirm("이 사원의 합류를 반려하시겠습니까?", {
+                title: "사원 반려",
+                confirmText: "반려"
+            });
+
+            if (!confirmed) return;
+
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${BACKEND_BASE}/api/company/members/${memberId}/reject`, {
+                    method: "POST",
+                    credentials: "include"
+                });
+
+                if (!res.ok) {
+                    throw new Error(await res.text());
+                }
+
+                showToast("사원을 반려했습니다.");
+                await loadPendingMembers();
+
+            } catch (error) {
+                console.error(error);
+                showToast("사원 반려 중 오류가 발생했습니다.", "error");
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>
