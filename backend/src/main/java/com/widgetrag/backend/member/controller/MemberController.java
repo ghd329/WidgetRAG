@@ -45,6 +45,7 @@ public class MemberController {
         session.setAttribute("memberId", response.memberId());
         session.setAttribute("clientCode", response.clientCode());
         session.setAttribute("companyId", response.companyId() );
+        session.setAttribute("role", response.role().name());
 
         return ResponseEntity.ok(response);
     }

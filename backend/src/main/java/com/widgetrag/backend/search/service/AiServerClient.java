@@ -20,7 +20,7 @@ public class AiServerClient {
     public AiServerClient(@Value("${ai-server.base-url}") String baseUrl) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(5000);
-        factory.setReadTimeout(30000);
+        factory.setReadTimeout(180000);
 
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
@@ -56,7 +56,8 @@ public class AiServerClient {
                     .map(vector -> vector.stream().map(Double::floatValue).toList())
                     .toList();
         } catch (Exception e) {
-            throw new RuntimeException("AI batch embedding request failed.", e);
+            e.printStackTrace();
+            throw new RuntimeException("AI batch embedding request failed: " + e.getClass().getSimpleName() + " - " + e.getMessage(), e);
         }
     }
 

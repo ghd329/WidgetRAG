@@ -2,6 +2,17 @@ function initPage() {
   checkCompanyLogin();
   applyTheme();
   applyCompanyName();
+  applyRoleVisibility();
+}
+
+function applyRoleVisibility() {
+  const role = localStorage.getItem("role");
+
+  document.querySelectorAll(".owner-only").forEach(el => {
+    if (role !== "COMPANY_OWNER") {
+      el.style.display = "none";
+    }
+  });
 }
 
 function applyCompanyName() {
