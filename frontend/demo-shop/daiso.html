@@ -294,7 +294,7 @@
 
 <script>
     const API_BASE = "http://localhost:8080";
-    const CLIENT_CODE = "shop_a3bdb59c";
+    const CLIENT_CODE = "shop_9880eaa3";
     let productsCache = [];
 
     function scrollToProducts() {
@@ -488,11 +488,17 @@
         });
     }
 
-    window.onload = loadProducts;
-</script>
-<script
-    src="http://127.0.0.1:8080/widget.js"
-    data-client-code="shop_b712a825">
+    function injectWidget() {
+        const script = document.createElement("script");
+        script.src = `http://127.0.0.1:8080/widget.js?v=${Date.now()}`;
+        script.dataset.clientCode = "shop_9880eaa3";
+        document.body.appendChild(script);
+    }
+
+    window.onload = () => {
+        loadProducts();
+        injectWidget();
+    };
 </script>
 </body>
 </html>

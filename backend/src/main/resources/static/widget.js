@@ -323,58 +323,50 @@ const WIDGET_BACKEND_BASE =
         }
 
         /* 상품 추천 카드 */
-        .product-cards {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+        .wr-product-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-auto-rows: min-content;
+            align-items: start;
+            gap: 8px;
             margin-bottom: 14px;
         }
 
-        .product-card {
+        .wr-product-card {
             display: flex;
-            align-items: center;
-            gap: 12px;
+            flex-direction: column;
+            align-self: start;
+            gap: 3px;
             background: white;
             border: 1px solid #ede9fe;
-            border-radius: 16px;
-            padding: 12px;
+            border-radius: 12px;
+            padding: 8px 10px;
             text-decoration: none;
             color: inherit;
             box-shadow: 0 6px 18px rgba(79,70,229,.07);
             transition: box-shadow .15s, transform .15s;
+            min-width: 0;
         }
 
-        a.product-card:hover {
+        a.wr-product-card:hover {
             box-shadow: 0 10px 26px rgba(79,70,229,.18);
             transform: translateY(-1px);
             cursor: pointer;
         }
 
-        .product-card-img img {
-            width: 60px;
-            height: 60px;
-            object-fit: cover;
-            border-radius: 12px;
-            background: #f3f4f6;
-            flex-shrink: 0;
-        }
-
-        .product-card-info {
-            min-width: 0;
-        }
-
-        .product-card-name {
-            font-size: 13.5px;
+        .wr-product-card-name {
+            font-size: 11.5px;
+            line-height: 1.3;
             font-weight: 700;
             color: #1e1b4b;
-            margin: 0 0 4px;
+            margin: 0;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
 
-        .product-card-price {
-            font-size: 13.5px;
+        .wr-product-card-price {
+            font-size: 11.5px;
             font-weight: 800;
             color: #4f46e5;
             margin: 0;
@@ -524,12 +516,12 @@ function appendProductCards(products) {
 
     const messages = document.getElementById("chatbotMessages");
     const wrap = document.createElement("div");
-    wrap.className = "product-cards";
+    wrap.className = "wr-product-cards";
 
     products.forEach(p => {
         const hasUrl = !!p.productUrl;
         const card = document.createElement(hasUrl ? "a" : "div");
-        card.className = "product-card";
+        card.className = "wr-product-card";
 
         if (hasUrl) {
             card.href = p.productUrl;
@@ -541,15 +533,9 @@ function appendProductCards(products) {
             ? p.price.toLocaleString() + "원"
             : "";
 
-        // TODO: 상품 이미지 URL 매핑 추가되면 placeholder 대신 실제 이미지로 교체
         card.innerHTML = `
-            <div class="product-card-img">
-                <img src="https://via.placeholder.com/100x100.png?text=Product" alt="${p.productName ?? ""}">
-            </div>
-            <div class="product-card-info">
-                <p class="product-card-name">${p.productName ?? ""}</p>
-                <p class="product-card-price">${priceText}</p>
-            </div>
+            <p class="wr-product-card-name">${p.productName ?? ""}</p>
+            <p class="wr-product-card-price">${priceText}</p>
         `;
 
         wrap.appendChild(card);
