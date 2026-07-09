@@ -258,7 +258,7 @@
 
     <script>
         const API_BASE = "http://localhost:8080";
-        const CLIENT_CODE = "shop_ae0e4488";
+        const CLIENT_CODE = "shop_c0e9d475";
         let productsCache = [];
 
         function scrollToProducts() {
@@ -480,7 +480,7 @@
 
         function injectWidget() {
             const script = document.createElement("script");
-            script.src = `${API_BASE}/widget.js`;
+            script.src = `${API_BASE}/widget.js?v=${Date.now()}`;
             script.dataset.clientCode = CLIENT_CODE;
             script.dataset.backendBase = API_BASE;
             document.body.appendChild(script);
@@ -493,7 +493,7 @@
     </script>
     <script
     src="http://127.0.0.1:8080/widget.js"
-    data-client-code="shop_067837f3">
+    data-client-code="shop_c0e9d475">
 </script>
 </body>
 </html>
