@@ -216,8 +216,8 @@ WidgetRAG/
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `client_code` | keyword | 테넌트 격리 필터 키 |
-| `company_id` | keyword | 소속 회사 식별자 |
-| `product_item_id` | keyword | 상품 아이템 식별자 (PostgreSQL `ProductItem`과 매핑) |
+| `company_id` | long | 소속 회사 식별자 |
+| `product_item_id` | long | 상품 아이템 식별자 (PostgreSQL `ProductItem`과 매핑) |
 | `product_name` | text | 상품명 |
 | `price` | integer | 가격 |
 | `categories` | keyword | 카테고리 |
