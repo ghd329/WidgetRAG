@@ -133,7 +133,9 @@ WidgetRAG는 온라인 쇼핑몰 운영사가 **`<script>` 태그 한 줄**만 �
 **약 52.3% 단축.** 계측 결과 전체 처리 시간의 약 95.8%가 임베딩 + OpenSearch 배치 색인 구간에 집중되어 있음을 확인했고, 이 구간을 병목으로 특정해 병렬화를 적용했습니다.
 
 ### 4. 장애 대응 Fallback 정책
-AI 서버(GPU 인퍼런스)가 느리거나 다운되어 있을 때, 또는 검색 결과가 0건일 때 예외를 그대로 전파하지 않고 **정해진 안내 응답으로 우아하게 대체**합니다. 모든 문답은 fallback 여부와 함께 회사별 `ChatLog`에 적재되어 이후 품질 분석에 활용할 수 있습니다.
+다음 세 가지 조건 중 하나라도 해당하면 예외를 그대로 전파하지 않고 **정해진 안내 응답으로 우아하게 대체**합니다: ① OpenSearch 검색 결과 0건, ② AI 서버 응답 지연/타임아웃(180초), ③ AI 서버 연결 자체 실패. 특히 ③은 `ChatService.getAnswer()`가 `openSearchIndexService.search(...)` 호출을 `RestClientException` 기준으로 감싸도록 수정해, AI 서버가 완전히 다운된 상태에서도 500 에러 대신 mock 응답이 반환되도록 실제 장애 주입 테스트(AI 서버 종료 후 `POST /api/chat` 호출)로 검증했습니다. 모든 문답은 fallback 여부와 함께 회사별 `ChatLog`에 적재되어 이후 품질 분석에 활용할 수 있습니다.
+
+> OpenSearch 자체가 다운된 경우(현재는 `IOException`을 감싼 일반 `RuntimeException`으로 전파됨)는 아직 이 Fallback 범위 밖입니다 — 아래 "알려진 이슈" 참고.
 
 ### 5. 원라인 임베드 위젯
 고객사는 `<script src=".../widget.js" data-client-code="...">` 한 줄만 자사 페이지에 추가하면 됩니다. 실제로 다이소몰·66girls를 크롤링해 만든 클론 데모 페이지에 이 위젯을 임베드하여, 실사이트에 가까운 환경에서 상품 추천 카드 렌더링까지 end-to-end로 검증했습니다.
@@ -276,7 +278,8 @@ python fashion/crawl_66girls.py
 | OpenSearch Client | 3.5.0 |
 | 임베딩 모델 | BAAI/bge-m3 (1024차원) |
 | LLM | EXAONE 3.5 7.8B (Ollama) / Gemma 3 4B-IT (transformers) |
-| DB | PostgreSQL |
+| DB | PostgreSQL 17 |
+| 실행 환경(GPU) | WSL2 Ubuntu 24.04, RTX 2000 Ada 16GB VRAM (로컬 GPU 추론 — 외부 API 미사용으로 비용·지연시간 절감, 멀티테넌시 데이터 유출 방지) |
 
 ---
 
@@ -285,7 +288,7 @@ python fashion/crawl_66girls.py
 - [x] client_code 기반 멀티테넌트 벡터 검색 격리 (OpenSearch k-NN, HNSW/cosine)
 - [x] CSV 상품 데이터 업로드(미리보기/컬럼 매핑/확정) 및 증분 upsert
 - [x] 벡터 검색 + LLM 생성 RAG 챗봇 (할루시네이션 가드레일 프롬프트)
-- [x] AI 서버 장애·지연 시 Fallback 응답 정책
+- [x] 검색 결과 0건 / AI 서버 응답 지연·타임아웃 / AI 서버 연결 실패 시 Fallback 응답 정책 (장애 주입 테스트로 검증 완료)
 - [x] 원라인 임베드 위젯 (상품 추천 카드 렌더링 포함)
 - [x] 회사 가입 승인 / 직원 승인 2단계 권한 워크플로우
 - [x] Ollama(EXAONE 3.5) / transformers(Gemma 3) 이중 LLM 백엔드 구현·비교
@@ -307,6 +310,7 @@ python fashion/crawl_66girls.py
 | 크롤러 결과물이 자동 파이프라인 없이 수동 업로드로 연결됨 | 확인 필요 | 크롤링 → 업로드 자동 연동 검토 |
 | OpenSearch 인덱스명이 테스트 단계 명칭(`product_items_exaone_test`) 그대로 사용 중 | 개선 예정 | 운영용 인덱스명으로 정리 필요 |
 | customer 화면 일부에 네이티브 `alert()` 잔존 (`customer.js:14`) | 개선 예정 | company/admin 콘솔은 Toast/Modal로 전환 완료, customer 쪽 마무리 필요 |
+| OpenSearch 자체 장애 시 Fallback 미적용 (500 에러로 전파) | 개선 예정 | AI 서버 연결 실패(`RestClientException`) 케이스는 Fallback 처리 완료 — OpenSearch가 던지는 일반 `RuntimeException`까지 같은 방식으로 확장 예정 |
 
 ---
 
@@ -324,4 +328,9 @@ python fashion/crawl_66girls.py
 
 ## 👥 팀 구성
 
-> 2인 프로젝트 (Backend/AI 파트, Frontend/Data Pipeline 파트)
+> 2인 프로젝트 (개발 기간 2026.06.19 – 2026.07.10)
+
+| 담당 | 역할 |
+|------|------|
+| 이윤화 | Spring Boot 백엔드 설계·구현, RAG 파이프라인(임베딩·검색·프롬프트·Fallback), 데이터 크롤링·전처리(Selenium·BeautifulSoup), OpenSearch·AI 서버(FastAPI) 연동, 서버 기술 문서(모델정의서·테이블정의서) 작성 |
+| 홍채원 | 관리자 콘솔·위젯 프론트엔드(JS), 회원가입·승인 플로우 설계, CSV 병렬 적재 파이프라인 구현(처리 시간 약 52% 단축), 쇼핑몰 데모 페이지 연동(66girls·Daiso), 발표 자료(PPT·화면정의서) 제작

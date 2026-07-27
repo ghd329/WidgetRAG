@@ -33,8 +33,14 @@ public class ChatService {
                 .orElseThrow(() -> new InvalidClientCodeException(request.clientCode()));
         // ▲▲▲ existsByClientCode → findByClientCode로 변경 ▲▲▲
 
-        List<SearchedProductDto> searchResults = openSearchIndexService.search(
-                request.clientCode(), request.question());
+        List<SearchedProductDto> searchResults;
+        try {
+            searchResults = openSearchIndexService.search(
+                    request.clientCode(), request.question());
+        } catch (RestClientException e) {
+            // 모델정의서 3.6 Fallback 정책 - 검색(임베딩) 단계에서 AI 서버 연결 실패 시 목업으로 대체
+            searchResults = List.of();
+        }
 
         ChatQueryResponseDto response;
 
