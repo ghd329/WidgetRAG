@@ -47,3 +47,5 @@ Thumbs.db
 ai-server/.venv/
 ai-server/__pycache__/
 ai-server/*.pyc
+
+INTERVIEW_PREP.md
