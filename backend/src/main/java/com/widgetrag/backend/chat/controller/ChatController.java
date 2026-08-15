@@ -11,14 +11,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.CrossOrigin;
 
 @RestController
 @RequestMapping("/api/chat")
-@CrossOrigin(origins = {
-        "http://pitzaar.com",
-        "https://pitzaar.com"
-})
 @RequiredArgsConstructor
 @Tag(name = "챗봇 질의응답", description = "쇼핑몰 위젯의 챗봇 질의 응답 API")
 public class ChatController {
