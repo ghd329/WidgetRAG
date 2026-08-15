@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>일반 회원가입</title>
     <link rel="stylesheet" href="../assets/css/common.css">
+    <script src="../assets/js/api.js"></script>
 
     <style>
         body {
@@ -114,7 +115,7 @@
 </div>
 
 <script>
-const API_BASE = "http://localhost:8080";
+const API_BASE = BACKEND_BASE;
 
 function showMessage(message, color = "#dc2626") {
     const box = document.getElementById("signupMessage");
