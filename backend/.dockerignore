@@ -1,0 +1,13 @@
+target/
+.mvn/
+mvnw
+mvnw.cmd
+.idea/
+.vscode/
+*.iml
+Dockerfile
+.dockerignore
+HELP.md
+
+# 로컬 전용 설정(로컬 DB 계정/윈도우 경로)이 이미지에 들어가지 않도록 제외
+src/main/resources/application-local.yaml

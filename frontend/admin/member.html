@@ -290,7 +290,10 @@
 </div>
 
 <script>
-    const API_BASE = "http://localhost:8080";
+    const API_BASE =
+        (location.protocol === "file:" || ["5500", "5501", "3000"].includes(location.port))
+            ? "http://localhost:8080"
+            : "";
     let allMembers = [];
 
     function roleBadge(role) {
@@ -309,7 +312,7 @@
         const tbody = document.getElementById("memberBody");
 
         try {
-            const response = await fetch(`${API_BASE}/api/admin/members`);
+            const response = await fetch(`${API_BASE}/api/admin/members`, { credentials: "include" });
 
             if (!response.ok) {
                 throw new Error("회원 목록을 불러오지 못했습니다.");
@@ -444,7 +447,8 @@
 
         try {
             const response = await fetch(`${API_BASE}/api/admin/members/${memberId}`, {
-                method: "DELETE"
+                method: "DELETE",
+                credentials: "include"
             });
 
             if (response.ok) {
@@ -477,7 +481,8 @@
 
         try {
             const response = await fetch(`${API_BASE}/api/admin/companies/${companyId}`, {
-                method: "DELETE"
+                method: "DELETE",
+                credentials: "include"
             });
 
             if (response.ok) {

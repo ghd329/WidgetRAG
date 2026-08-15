@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 data/
 
+# ===== Docker 배포 =====
+.env
+
 # ===== Backend (Spring Boot / Maven / IntelliJ) =====
 backend/HELP.md
 backend/target/

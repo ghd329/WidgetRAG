@@ -1,0 +1,124 @@
+# WidgetRag 배포 구성
+#
+#   frontend(nginx:80) ──/api──> backend(8080) ──> postgres(5432)
+#                                              ──> opensearch(9200)
+#                                              ──> ai-server(8000) ──> llm(ollama:11434)
+#
+# 사전 준비
+#   1) .env 파일 생성 (.env.example 복사)
+#   2) GPU 호스트에 nvidia-container-toolkit 설치
+# LLM 가중치는 최초 기동 시 llm 컨테이너가 자동으로 pull합니다 (약 5GB, 수 분).
+#
+# data-pipeline은 일회성 크롤링 스크립트라 배포 대상이 아닙니다 (의도적으로 제외).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-widgetrag}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME:-widgetrag}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  opensearch:
+    image: opensearchproject/opensearch:2.18.0
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
+      # OpenSearchConfig가 인증 없이 평문 HTTP로 접속하므로 보안 플러그인을 끕니다.
+      # 외부에 포트를 열지 마세요(아래 ports 미노출 유지).
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  llm:
+    build: ./llm
+    volumes:
+      # 모델 가중치(약 5GB)가 저장됩니다. 최초 기동 시에만 다운로드합니다.
+      - ollama-data:/root/.ollama
+    environment:
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-exaone3.5:7.8b}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  ai-server:
+    build: ./ai-server
+    environment:
+      OLLAMA_BASE_URL: http://llm:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-exaone3.5:7.8b}
+      EMBEDDING_DEVICE: ${EMBEDDING_DEVICE:-cuda}
+    depends_on:
+      - llm
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: postgres
+      DB_NAME: ${DB_NAME:-widgetrag}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      OPENSEARCH_HOST: opensearch
+      AI_SERVER_BASE_URL: http://ai-server:8000
+      WIDGET_SCRIPT_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost}/widget.js
+      STORAGE_BASE_PATH: /data/widgetrag
+      # 위젯이 설치되는 고객사 도메인을 쉼표로 구분해 등록합니다.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost}
+      # HTTPS 종단이 없으면 secure 쿠키가 전달되지 않아 로그인 세션이 유지되지 않습니다.
+      SESSION_SECURE: ${SESSION_SECURE:-false}
+      SESSION_SAME_SITE: ${SESSION_SAME_SITE:-lax}
+    volumes:
+      - upload-data:/data/widgetrag
+    depends_on:
+      postgres:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  opensearch-data:
+  ollama-data:
+  upload-data:

@@ -183,10 +183,15 @@
                 return;
             }
 
+            // 고객사 사이트에 붙는 코드이므로 절대 URL이어야 합니다.
+            // 현재 서비스가 배포된 origin을 그대로 사용합니다.
+            const origin = location.origin;
+
             const installCode =
 `<script
-    src="http://127.0.0.1:8080/widget.js"
-    data-client-code="${clientCode}">
+    src="${origin}/widget.js"
+    data-client-code="${clientCode}"
+    data-backend-base="${origin}">
 <\/script>`;
 
             document.getElementById("scriptCode").value = installCode;

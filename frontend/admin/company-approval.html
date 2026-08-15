@@ -328,13 +328,16 @@
 </div>
 
 <script>
-    const API_BASE = "http://localhost:8080";
+    const API_BASE =
+        (location.protocol === "file:" || ["5500", "5501", "3000"].includes(location.port))
+            ? "http://localhost:8080"
+            : "";
 
     async function loadCompanies() {
         const tbody = document.getElementById("companyBody");
 
         try {
-            const response = await fetch(`${API_BASE}/api/admin/companies/pending`);
+            const response = await fetch(`${API_BASE}/api/admin/companies/pending`, { credentials: "include" });
 
             if (!response.ok) {
                 throw new Error("기업 목록을 불러오지 못했습니다.");
@@ -402,7 +405,8 @@
         if (!confirmed) return;
 
         const response = await fetch(`${API_BASE}/api/admin/companies/${companyId}/approve`, {
-            method: "POST"
+            method: "POST",
+            credentials: "include"
         });
 
         if (response.ok) {
@@ -422,7 +426,8 @@
         if (!confirmed) return;
 
         const response = await fetch(`${API_BASE}/api/admin/companies/${companyId}/reject`, {
-            method: "POST"
+            method: "POST",
+            credentials: "include"
         });
 
         if (response.ok) {

@@ -4,14 +4,26 @@ from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 from typing import List, Optional
 
+import os
 import requests
 
 app = FastAPI(title="WidgetRAG AI Server")
 
-embedding_model = SentenceTransformer("BAAI/bge-m3", device="cuda")
+# GPU가 없는 환경(로컬 CPU, CI)에서도 기동되도록 자동 판별합니다.
+# 강제로 지정하려면 EMBEDDING_DEVICE=cuda|cpu
+_device = os.getenv("EMBEDDING_DEVICE")
+if not _device:
+    import torch
+    _device = "cuda" if torch.cuda.is_available() else "cpu"
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "exaone3.5:7.8b"   # 여기만 바꾸면 모델 교체 가능
+embedding_model = SentenceTransformer("BAAI/bge-m3", device=_device)
+
+# 컨테이너에서는 docker-compose 서비스명으로 주입됩니다 (예: http://llm:11434)
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+OLLAMA_URL = f"{OLLAMA_BASE_URL}/api/generate"
+
+# Ollama 레지스트리 모델명. llm 컨테이너가 pull하는 모델과 일치해야 합니다.
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "exaone3.5:7.8b")
 
 
 class EmbedRequest(BaseModel):

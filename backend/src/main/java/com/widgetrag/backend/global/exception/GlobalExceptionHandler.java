@@ -7,6 +7,8 @@ import com.widgetrag.backend.member.exception.InvalidCredentialsException;
 import com.widgetrag.backend.member.exception.MemberAccessDeniedException;
 import com.widgetrag.backend.member.exception.MemberNotFoundException;
 import com.widgetrag.backend.product.exception.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -16,6 +18,8 @@ import java.time.LocalDateTime;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(DuplicateEmailException.class)
     public ResponseEntity<ErrorResponse> handleDuplicateEmail(DuplicateEmailException e) {
@@ -38,11 +42,28 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(e.getMessage(), HttpStatus.UNAUTHORIZED.value(), LocalDateTime.now()));
     }
 
+    /**
+     * 처리되지 않은 예외. 응답에는 상세를 담지 않되, 서버 로그에는 반드시 남깁니다.
+     * (로그가 없으면 운영 중 500이 나도 원인을 추적할 방법이 없습니다)
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception e) {
+        log.error("처리되지 않은 예외 발생", e);
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ErrorResponse("서버 내부 오류가 발생했습니다.", HttpStatus.INTERNAL_SERVER_ERROR.value(), LocalDateTime.now()));
+    }
+
+    /**
+     * 비밀번호 규칙 위반(PasswordValidator) 등 잘못된 입력.
+     * 이 핸들러가 없으면 위 catch-all로 떨어져 사용자에게 500이 나갑니다.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException e) {
+        log.warn("잘못된 요청: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse(e.getMessage(), HttpStatus.BAD_REQUEST.value(), LocalDateTime.now()));
     }
 
     @ExceptionHandler(InvalidFileFormatException.class)

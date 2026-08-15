@@ -1,0 +1,51 @@
+# WidgetRag - Docker 배포용 프로필
+# 서비스명(postgres/opensearch/ai-server)은 docker-compose.yml의 서비스명과 일치해야 합니다.
+# 비밀값은 파일에 넣지 말고 환경변수(.env)로 주입합니다.
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:widgetrag}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+server:
+  servlet:
+    session:
+      cookie:
+        # same-site=none은 secure=true를 요구하므로 HTTPS 종단이 없으면 세션이 끊깁니다.
+        # HTTPS(로드밸런서/인증서) 적용 전까지는 SESSION_SECURE=false로 두세요.
+        same-site: ${SESSION_SAME_SITE:none}
+        secure: ${SESSION_SECURE:true}
+
+logging:
+  level:
+    com.widgetrag: INFO
+
+# 운영에서는 API 명세를 노출하지 않습니다.
+# (전체 엔드포인트 구조와 관리자 API가 그대로 드러납니다)
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+opensearch:
+  host: ${OPENSEARCH_HOST:opensearch}
+  port: ${OPENSEARCH_PORT:9200}
+
+ai-server:
+  base-url: ${AI_SERVER_BASE_URL:http://ai-server:8000}
+
+widget:
+  # 고객사에 배포되는 위젯 스크립트의 공개 URL (실제 도메인으로 교체)
+  script-base-url: ${WIDGET_SCRIPT_BASE_URL:http://localhost/widget.js}
+
+widgetrag:
+  storage:
+    # 컨테이너 내부 경로. docker-compose에서 볼륨으로 마운트됩니다.
+    base-path: ${STORAGE_BASE_PATH:/data/widgetrag}
+  cors:
+    # 관리 화면은 nginx가 같은 오리진으로 프록시하므로 CORS가 필요 없습니다.
+    # 여기 등록할 것은 위젯(widget.js)이 설치되는 외부 고객사 도메인입니다.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost}

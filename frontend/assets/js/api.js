@@ -1,5 +1,11 @@
 // 백엔드 API 기본 URL - 전체 페이지 공통, 절대 페이지별로 따로 선언하지 말 것
-const BACKEND_BASE = "http://localhost:8080";
+//
+// 배포(Docker/nginx): "" → /api/... 같은 상대경로가 되어 nginx가 backend로 프록시합니다.
+// 로컬 개발(Live Server 등): 정적 서버 포트에서 열면 localhost:8080을 직접 호출합니다.
+const BACKEND_BASE =
+    (location.protocol === "file:" || ["5500", "5501", "3000"].includes(location.port))
+        ? "http://localhost:8080"
+        : "";
 
 const mockApi={
   products:[

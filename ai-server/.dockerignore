@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+Dockerfile
+.dockerignore
+
+# 미사용 (gemma 계열)
+main_gemma.py
+requirements_gemma.txt

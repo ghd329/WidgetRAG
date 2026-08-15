@@ -293,7 +293,10 @@
 </main>
 
 <script>
-    const API_BASE = "http://localhost:8080";
+    const API_BASE =
+        (location.protocol === "file:" || ["5500", "5501", "3000"].includes(location.port))
+            ? "http://localhost:8080"
+            : "";
     const CLIENT_CODE = "shop_be2d7d73";
     let productsCache = [];
 
