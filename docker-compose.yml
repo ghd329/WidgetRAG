@@ -111,10 +111,25 @@ services:
 
   frontend:
     build: ./frontend
-    ports:
-      - "${HTTP_PORT:-80}:80"
     depends_on:
       - backend
+    restart: unless-stopped
+
+  # HTTPS 종단. Let's Encrypt 인증서를 도메인 기준으로 자동 발급/갱신합니다.
+  # frontend는 더 이상 80을 직접 노출하지 않고, caddy를 통해서만 접근합니다.
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      DOMAIN: ${DOMAIN:-pitzaar.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - frontend
     restart: unless-stopped
 
 volumes:
@@ -122,3 +137,5 @@ volumes:
   opensearch-data:
   ollama-data:
   upload-data:
+  caddy-data:
+  caddy-config:
