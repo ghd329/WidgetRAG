@@ -46,6 +46,8 @@ widgetrag:
     # 컨테이너 내부 경로. docker-compose에서 볼륨으로 마운트됩니다.
     base-path: ${STORAGE_BASE_PATH:/data/widgetrag}
   cors:
-    # 관리 화면은 nginx가 같은 오리진으로 프록시하므로 CORS가 필요 없습니다.
-    # 여기 등록할 것은 위젯(widget.js)이 설치되는 외부 고객사 도메인입니다.
+    # 세션 쿠키를 쓰는 콘솔 API의 허용 오리진입니다.
+    # 관리 화면은 nginx가 같은 오리진으로 프록시하므로 사실상 이 값이 필요 없지만,
+    # 콘솔을 다른 도메인에서 서비스할 경우를 위해 남겨둡니다.
+    # 위젯이 설치되는 고객사 도메인은 여기에 등록하지 않습니다(/api/chat은 전체 허용).
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost}

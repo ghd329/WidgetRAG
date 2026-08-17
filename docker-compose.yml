@@ -98,7 +98,8 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       WIDGET_SCRIPT_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost}/widget.js
       STORAGE_BASE_PATH: /data/widgetrag
-      # 위젯이 설치되는 고객사 도메인을 쉼표로 구분해 등록합니다.
+      # 콘솔이 서비스되는 오리진만 등록합니다. 위젯이 설치되는 고객사 도메인은
+      # 등록할 필요가 없습니다(/api/chat은 쿠키를 쓰지 않아 모든 오리진 허용).
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost}
       # HTTPS 종단이 없으면 secure 쿠키가 전달되지 않아 로그인 세션이 유지되지 않습니다.
       SESSION_SECURE: ${SESSION_SECURE:-false}

@@ -43,6 +43,44 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+
+        // 첫 번째로 매칭되는 규칙이 적용되므로, 더 구체적인 /api/chat을 먼저 등록합니다.
+        source.registerCorsConfiguration("/api/chat", widgetChatCorsConfiguration());
+        source.registerCorsConfiguration("/**", consoleCorsConfiguration());
+
+        return source;
+    }
+
+    /**
+     * 고객사 쇼핑몰에 설치된 위젯이 호출하는 경로.
+     *
+     * 위젯은 쿠키를 보내지 않으므로(widget.js의 fetch가 credentials를 쓰지 않음)
+     * 오리진을 열어도 로그인 세션이 노출되지 않습니다. 반대로 오리진을 제한하면
+     * 고객사가 늘어날 때마다 환경변수 수정과 백엔드 재기동이 필요해지고,
+     * 재기동 시 인메모리 세션이 모두 끊깁니다.
+     *
+     * CORS는 브라우저에만 적용되는 규칙이라 서버 대 서버 호출은 어차피 막지 못합니다.
+     * 즉 여기서의 제한은 정상적인 위젯 설치만 막을 뿐 실질적인 방어가 되지 않습니다.
+     * clientCode 도용 같은 무단 사용을 막으려면 회사별 허용 도메인 검증과
+     * 호출 빈도 제한이 필요하며, 그것은 CORS와 별개의 작업입니다.
+     */
+    private CorsConfiguration widgetChatCorsConfiguration() {
+        CorsConfiguration config = new CorsConfiguration();
+
+        config.setAllowedOrigins(List.of("*"));
+        config.setAllowedMethods(List.of("POST", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Content-Type"));
+        config.setAllowCredentials(false); // 쿠키를 주고받지 않습니다. "*" 허용의 전제 조건입니다.
+        config.setMaxAge(3600L);
+
+        return config;
+    }
+
+    /**
+     * 관리자/회사 콘솔 등 세션 쿠키를 사용하는 나머지 경로.
+     */
+    private CorsConfiguration consoleCorsConfiguration() {
         CorsConfiguration config = new CorsConfiguration();
 
         // allowCredentials=true 상태에서 오리진을 사실상 전부 허용하면(http://**),
@@ -59,9 +97,7 @@ public class SecurityConfig {
         config.setAllowCredentials(true); // 세션 쿠키 주고받으려면 필수
         config.setMaxAge(3600L);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
-        return source;
+        return config;
     }
 
     @Bean
