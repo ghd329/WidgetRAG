@@ -93,6 +93,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       OPENSEARCH_HOST: opensearch
       AI_SERVER_BASE_URL: http://ai-server:8000
+      # 최초 기동 시 생성할 관리자 계정. 비어 있으면 계정을 만들지 않습니다.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@widgetrag.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       WIDGET_SCRIPT_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost}/widget.js
       STORAGE_BASE_PATH: /data/widgetrag
       # 위젯이 설치되는 고객사 도메인을 쉼표로 구분해 등록합니다.

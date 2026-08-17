@@ -15,6 +15,14 @@ public class AdminCompanyController {
 
     private final AdminCompanyService adminCompanyService;
 
+    /**
+     * 전체 기업 목록(시스템 회사 제외). 관리자 화면이 상태별 건수를 집계하는 데 사용합니다.
+     */
+    @GetMapping
+    public ResponseEntity<List<AdminCompanyResponseDto>> getCompanies() {
+        return ResponseEntity.ok(adminCompanyService.getCompanies());
+    }
+
     @GetMapping("/pending")
     public ResponseEntity<List<AdminCompanyResponseDto>> getPendingCompanies() {
         return ResponseEntity.ok(adminCompanyService.getPendingCompanies());

@@ -23,8 +23,25 @@ public class AdminCompanyService {
 
     @Transactional(readOnly = true)
     public List<AdminCompanyResponseDto> getPendingCompanies() {
-        List<Company> companies = companyRepository.findByStatus(CompanyStatus.PENDING);
+        return toDtos(companyRepository.findByStatus(CompanyStatus.PENDING));
+    }
 
+    /**
+     * 승인 대기/승인/반려를 모두 포함한 전체 기업 목록.
+     * 관리자 화면의 상태별 집계(승인 대기 n개 / 총 승인 n개 / 총 반려 n개)에 사용합니다.
+     * 시스템 회사(SYSTEM)는 가입으로 생긴 고객사가 아니라 관리자 계정을 담는 내부 레코드라
+     * 집계가 부풀지 않도록 제외합니다.
+     */
+    @Transactional(readOnly = true)
+    public List<AdminCompanyResponseDto> getCompanies() {
+        List<Company> companies = companyRepository.findAll().stream()
+                .filter(company -> !"SYSTEM".equals(company.getClientCode()))
+                .toList();
+
+        return toDtos(companies);
+    }
+
+    private List<AdminCompanyResponseDto> toDtos(List<Company> companies) {
         return companies.stream()
                 .map(company -> {
                     Member owner = memberRepository.findByCompanyIdAndRole(

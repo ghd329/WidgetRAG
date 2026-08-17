@@ -43,6 +43,11 @@ ai-server:
   base-url: http://localhost:8000
 
 widgetrag:
+  admin:
+    # 최초 기동 시 생성할 관리자 계정. 비밀번호는 코드/설정 파일에 두지 말고
+    # 환경변수(ADMIN_PASSWORD)로 주입합니다. 비워두면 관리자 계정을 만들지 않습니다.
+    email: ${ADMIN_EMAIL:admin@widgetrag.com}
+    password: ${ADMIN_PASSWORD:}
   storage:
     base-path: C:/Users/SMT23/WidgetRAG/widgetrag-data
   cors:

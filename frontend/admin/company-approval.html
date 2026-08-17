@@ -282,7 +282,7 @@
                 <div class="icon-circle green">✓</div>
                 <div>
                     <span>총 승인 기업</span>
-                    <strong>0개</strong>
+                    <strong id="approvedCount">0개</strong>
                 </div>
             </div>
 
@@ -290,7 +290,7 @@
                 <div class="icon-circle red">×</div>
                 <div>
                     <span>총 반려 기업</span>
-                    <strong>0개</strong>
+                    <strong id="rejectedCount">0개</strong>
                 </div>
             </div>
 
@@ -338,7 +338,9 @@
         const tbody = document.getElementById("companyBody");
 
         try {
-            const response = await fetch(`${API_BASE}/api/admin/companies/pending`, { credentials: "include" });
+            // 상태별 집계를 함께 표시해야 해서 전체 목록을 받아옵니다.
+            // 아래 표에는 그중 승인 대기(PENDING)만 그립니다.
+            const response = await fetch(`${API_BASE}/api/admin/companies`, { credentials: "include" });
 
             // 세션 만료(401)나 관리자 권한 없음(403)이면 로그인 페이지로 보냅니다.
             if (handleAdminAuthFailure(response)) return;
@@ -347,9 +349,15 @@
                 throw new Error("기업 목록을 불러오지 못했습니다.");
             }
 
-            const companies = await response.json();
+            const allCompanies = await response.json();
+            const companies = allCompanies.filter(company => company.status === "PENDING");
+
+            const countByStatus = status =>
+                allCompanies.filter(company => company.status === status).length + "개";
 
             document.getElementById("pendingCount").innerText = companies.length + "개";
+            document.getElementById("approvedCount").innerText = countByStatus("APPROVED");
+            document.getElementById("rejectedCount").innerText = countByStatus("REJECTED");
             document.getElementById("updatedTime").innerText = "방금 전";
 
             tbody.innerHTML = "";
