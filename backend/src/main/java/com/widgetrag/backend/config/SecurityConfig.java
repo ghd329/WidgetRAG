@@ -73,7 +73,13 @@ public class SecurityConfig {
                 // 대신 위의 CORS 오리진 제한 + SameSite 쿠키 설정으로 방어합니다.
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                        // 로그인은 MemberController가 직접 처리하므로, Spring Security는 인증이 붙은
+                        // 첫 요청을 "방금 로그인한 요청"으로 오인해 그때 세션 ID를 교체합니다.
+                        // 그 순간 진행 중이던 다른 요청은 무효가 된 ID를 들고 있어 401로 떨어집니다.
+                        // 세션 고정 방어는 로그인에서 기존 세션을 invalidate하며 이미 처리하므로,
+                        // 여기서의 추가 교체는 끕니다.
+                        .sessionFixation(fixation -> fixation.none()))
 
                 // 인증 실패 시 로그인 폼으로 리다이렉트하지 않고 401을 그대로 반환합니다.
                 // (프론트가 fetch로만 호출하므로 리다이렉트는 오히려 디버깅을 어렵게 만듭니다)

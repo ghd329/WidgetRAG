@@ -8,6 +8,7 @@
 
     <link rel="stylesheet" href="../assets/css/ui-feedback.css">
     <script src="../assets/js/ui-feedback.js"></script>
+    <script src="../assets/js/auth.js"></script>
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -313,6 +314,9 @@
 
         try {
             const response = await fetch(`${API_BASE}/api/admin/members`, { credentials: "include" });
+
+            // 세션 만료(401)나 관리자 권한 없음(403)이면 로그인 페이지로 보냅니다.
+            if (handleAdminAuthFailure(response)) return;
 
             if (!response.ok) {
                 throw new Error("회원 목록을 불러오지 못했습니다.");

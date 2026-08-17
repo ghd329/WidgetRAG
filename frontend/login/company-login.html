@@ -134,6 +134,20 @@
             box.style.display = "block";
         }
 
+        // 관리자 화면에서 인증 실패로 되돌아온 경우 이유를 알려줍니다.
+        // (그냥 로그인 폼만 다시 뜨면 왜 튕겼는지 알 수 없습니다)
+        function showRedirectReason() {
+            const reason = new URLSearchParams(location.search).get("reason");
+
+            if (reason === "admin-required") {
+                showLoginMessage("관리자 권한이 필요한 화면입니다.<br>관리자 계정으로 로그인해 주세요.", "pending");
+            } else if (reason === "session-expired") {
+                showLoginMessage("로그인이 만료되었습니다.<br>다시 로그인해 주세요.", "pending");
+            }
+        }
+
+        showRedirectReason();
+
         async function loginAsCompany() {
             const email = document.getElementById("email").value.trim();
             const password = document.getElementById("password").value.trim();

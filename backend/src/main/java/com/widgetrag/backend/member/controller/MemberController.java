@@ -41,6 +41,16 @@ public class MemberController {
     ) {
         LoginResponseDto response = memberService.login(request);
 
+        // 이전 로그인 세션이 남아 있으면 그 안에 저장된 SecurityContext(직전 계정의 권한)가
+        // 그대로 재사용되어, 새로 로그인한 계정의 권한이 반영되지 않습니다.
+        // (예: 회사 계정으로 쓰던 세션에 관리자로 로그인 → /api/admin/** 이 403)
+        // 세션을 버리고 새로 만들어 이전 상태를 완전히 제거합니다.
+        // 세션 ID가 함께 바뀌므로 세션 고정(fixation) 공격 방어 역할도 겸합니다.
+        HttpSession previousSession = httpRequest.getSession(false);
+        if (previousSession != null) {
+            previousSession.invalidate();
+        }
+
         HttpSession session = httpRequest.getSession(true);
         session.setAttribute("memberId", response.memberId());
         session.setAttribute("clientCode", response.clientCode());
