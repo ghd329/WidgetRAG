@@ -141,7 +141,7 @@
 
                     <div class="info-card">
                         <span>백엔드 주소</span>
-                        <strong>http://127.0.0.1:8080</strong>
+                        <strong id="backendBaseText">-</strong>
                     </div>
                 </div>
 
@@ -175,6 +175,10 @@
 
             document.getElementById("companyNameText").innerText = companyName;
             document.getElementById("clientCodeText").innerText = clientCode || "상점 코드 없음";
+
+            // 아래 삽입 코드가 실제로 가리키는 주소를 그대로 보여줍니다.
+            // (고정값을 적어두면 배포 환경이 바뀔 때 화면과 코드가 어긋납니다)
+            document.getElementById("backendBaseText").innerText = location.origin;
 
             if (!clientCode) {
                 document.getElementById("scriptCode").value =
