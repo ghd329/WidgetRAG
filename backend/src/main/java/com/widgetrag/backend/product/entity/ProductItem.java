@@ -87,9 +87,9 @@ public class ProductItem {
     }
 
     public static ProductItem createManually(Company company, Member createdBy,
-                                             String productName, int price, String description) {
-        // URL 없는 수동 등록이므로 null 전달
-        return createFromFile(company, null, createdBy, null, productName, price, description, null);
+                                             String productName, int price, String description,
+                                             String productUrl) {
+        return createFromFile(company, null, createdBy, null, productName, price, description, productUrl);
     }
 
     public boolean addCategory(String category) {

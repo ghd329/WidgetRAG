@@ -320,7 +320,8 @@ public class ProductItemService {
                 member,
                 request.productName(),
                 request.price(),
-                request.description()
+                request.description(),
+                request.productUrl()
         );
 
         if (request.categories() != null) {

@@ -187,7 +187,7 @@
                     <td>${categoryMain}</td>
                     <td>${categorySub}</td>
                     <td>${product.description || "-"}</td>
-                    <td>-</td>
+                    <td>${product.productUrl || "-"}</td>
                     <td>
                         <button class="delete" onclick="deleteProductItem(${product.id}, this)">삭제</button>
                     </td>
@@ -242,8 +242,7 @@
             }
         }
 
-        function addProductManual() {
-            const product_id = document.getElementById("productId").value.trim();
+        async function addProductManual() {
             const product_name = document.getElementById("productName").value.trim();
             const price = document.getElementById("productPrice").value.trim();
             const category_main = document.getElementById("categoryMain").value.trim();
@@ -262,8 +261,8 @@
                 hasError = true;
             }
 
-            if (!price) {
-                setFieldError("productPrice", "productPriceError", "가격은 필수 입력입니다.");
+            if (!price || Number.isNaN(Number(price))) {
+                setFieldError("productPrice", "productPriceError", "가격은 숫자로 입력해야 합니다.");
                 hasError = true;
             }
 
@@ -276,32 +275,40 @@
                 return;
             }
 
-            const products = JSON.parse(localStorage.getItem("products")) || [];
+            try {
+                const res = await fetch(`${BACKEND_BASE}/api/product-items`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({
+                        productName: product_name,
+                        price: Number(price),
+                        categories: category_sub ? [category_main, category_sub] : [category_main],
+                        description: description,
+                        productUrl: url
+                    })
+                });
 
-            products.push({
-                uploadId: "manual",
-                product_id: product_id || "manual-" + Date.now(),
-                product_name: product_name,
-                price: price,
-                category_main: category_main,
-                category_sub: category_sub || "-",
-                description: description || "-",
-                url: url || "#"
-            });
+                if (!res.ok) {
+                    throw new Error(await res.text());
+                }
 
-            localStorage.setItem("products", JSON.stringify(products));
+                document.getElementById("productId").value = "";
+                document.getElementById("productName").value = "";
+                document.getElementById("productPrice").value = "";
+                document.getElementById("categoryMain").value = "";
+                document.getElementById("categorySub").value = "";
+                document.getElementById("productDesc").value = "";
+                document.getElementById("productUrl").value = "";
 
-            document.getElementById("productId").value = "";
-            document.getElementById("productName").value = "";
-            document.getElementById("productPrice").value = "";
-            document.getElementById("categoryMain").value = "";
-            document.getElementById("categorySub").value = "";
-            document.getElementById("productDesc").value = "";
-            document.getElementById("productUrl").value = "";
+                await loadProducts();
 
-            loadProducts();
+                showToast("상품이 추가되었습니다.");
 
-            showToast("상품이 추가되었습니다.");
+            } catch (error) {
+                console.error(error);
+                showToast("상품 추가 중 오류가 발생했습니다. " + error.message, "error");
+            }
         }
     </script>
 </body>
