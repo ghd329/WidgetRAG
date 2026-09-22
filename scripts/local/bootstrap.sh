@@ -55,6 +55,13 @@ if [ -d "$TARGET_DIR/.git" ]; then
   git -C "$TARGET_DIR" checkout "$BRANCH"
   git -C "$TARGET_DIR" reset --hard "origin/$BRANCH"
 else
+  # rsync 시절 사본 등 git 저장소가 아닌 디렉토리가 있으면 백업 후 clone
+  # (저장소 디렉토리의 내용물은 전부 재생성 가능 — 운영 데이터는 ~/widgetrag-data에 별도)
+  if [ -e "$TARGET_DIR" ] && [ -n "$(ls -A "$TARGET_DIR" 2>/dev/null)" ]; then
+    BAK="$TARGET_DIR.bak.$(date +%Y%m%d%H%M%S)"
+    log "비-git 디렉토리 발견 (rsync 사본 등) — 백업 후 clone: $TARGET_DIR → $BAK"
+    mv "$TARGET_DIR" "$BAK"
+  fi
   log "clone: $REPO_URL ($BRANCH) → $TARGET_DIR"
   git clone -b "$BRANCH" "$REPO_URL" "$TARGET_DIR"
 fi
