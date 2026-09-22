@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 # ===========================================================
-# [부트스트랩] 신규 VM 진입점 — 코드 확보(git) + NVIDIA 드라이버 + 실행 형태 진입
+# [부트스트랩] 신규 VM 진입점 — 코드 확보(git) + NVIDIA 드라이버 + Shell 설치형(A) 진입
+#
+#   ※ Docker Compose(B) 트랙은 이 저장소의 스크립트를 쓰지 않는다 — 애플리케이션이
+#     레지스트리 이미지로 말려 있어 타겟에 소스·git이 불필요하므로, 저장소 외부에서
+#     관리하는 독립 배포 스크립트(widgetrag-compose-deploy.sh)가 compose 정의만 받아 기동한다.
 #
 #   최초 1회 (스크립트가 VM에 없는 상태 — postCommands 페이로드와 동일):
 #
 #     curl -fsSL https://raw.githubusercontent.com/ghd329/WidgetRAG/main/scripts/local/bootstrap.sh \
-#       | BRANCH=<브랜치> bash -s -- --start        # A: Shell 설치형 무인 기동 (B: --compose)
+#       | BRANCH=<브랜치> bash -s -- --start        # A: Shell 설치형 무인 기동
 #
 #   이후 (첫 실행이 자신을 /usr/local/bin/bootstrap.sh 로 설치하고, 브랜치는
 #   기존 clone(~/WidgetRAG)에서 자동 유도하므로 짧게 친다):
 #
-#     bootstrap.sh --start        # 또는 --compose / --install
+#     bootstrap.sh --start        # 또는 --install
 #
 #   동작 순서 (멱등):
 #     1) git 설치 → clone (있으면 fetch + reset --hard origin/BRANCH)
@@ -22,7 +26,6 @@
 #     4) 실행 형태 진입:
 #        --install : scripts/local/install.sh          (A: 도구 설치+설정, 기동 전까지)
 #        --start   : install.sh → start.sh             (A: 기동+헬스체크까지)
-#        --compose : scripts/compose/setup.sh          (B: Docker+toolkit+.env+up까지)
 #        (없음)    : 코드·드라이버만 준비
 #
 #   환경변수:
@@ -46,7 +49,7 @@ RESUME_UNIT="widgetrag-bootstrap-resume"
 log() { printf '\033[1;32m[bootstrap]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[bootstrap][FAIL]\033[0m %s\n' "$*" >&2; exit 1; }
 
-case "$MODE" in ""|--install|--start|--compose) : ;; *) die "알 수 없는 옵션: $MODE (--install | --start | --compose)" ;; esac
+case "$MODE" in ""|--install|--start) : ;; *) die "알 수 없는 옵션: $MODE (--install | --start) — Docker Compose(B)는 독립 배포 스크립트(widgetrag-compose-deploy.sh) 사용" ;; esac
 
 # ---------- 1. 코드 확보 ----------
 if ! command -v git >/dev/null 2>&1; then
@@ -145,9 +148,8 @@ fi
 
 # ---------- 3. 실행 형태 진입 ----------
 case "$MODE" in
-  "")        log "코드·드라이버 준비 완료 — A: --install/--start · B: --compose" ;;
+  "")        log "코드·드라이버 준비 완료 — --install 또는 --start 로 기동" ;;
   --install) "$TARGET_DIR/scripts/local/install.sh" ;;
   --start)   "$TARGET_DIR/scripts/local/install.sh"
              "$TARGET_DIR/scripts/local/start.sh" ;;
-  --compose) "$TARGET_DIR/scripts/compose/setup.sh" ;;
 esac

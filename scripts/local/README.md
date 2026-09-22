@@ -46,8 +46,9 @@ FORM=aws-shell RUNS=5 ... ./50-verify.sh  # 결과표에 환경 이름 태깅 �
 문제 격리나 부분 재실행이 필요할 때는 번호 스크립트를 직접 사용한다:
 
 ```bash
-./bootstrap.sh            # [진입점] git clone + NVIDIA 드라이버(재부팅 자동 재개) + 형태 진입 — 신규 VM·postCommands용
-#                           --start: shell 설치형(A) 무인 기동 · --compose: Docker Compose(B) 무인 기동 (../compose/setup.sh)
+./bootstrap.sh            # [진입점] git clone + NVIDIA 드라이버(재부팅 자동 재개) + A 기동 — 신규 VM·postCommands용
+#                           --start: shell 설치형(A) 무인 기동 — Docker Compose(B)는 저장소 외부의
+#                           독립 배포 스크립트(widgetrag-compose-deploy.sh)로 기동 (타겟에 소스·git 불필요)
 ./10-install-tools.sh     # [Phase A] 도구 설치 (apt — JDK·Python·OpenSearch·Ollama)
 ./20-start-infra.sh       # [Phase B] OpenSearch(systemd) + Ollama + 모델 확보
 ./30-setup-config.sh      # [Phase C] application-local.yaml 생성 + 저장 디렉토리
@@ -80,7 +81,9 @@ CLIENT_CODE=shop_xxxxxxxx ./50-verify.sh
 Track A(shell 설치형)는 **전 구성요소 네이티브**다 — 이 VM에는 Docker 자체가 없고,
 OpenSearch는 apt 직접 설치 + systemd, 앱 3종도 systemd 유닛으로 뜬다.
 스크립트는 Ubuntu Linux 전용이며 다른 OS에서는 기동을 거부한다 (env.sh 가드).
-Docker Compose 형태(전부 컨테이너)는 별도 트랙 — 프로젝트 루트의 `docker-compose.yml` 사용.
+Docker Compose 형태(전부 컨테이너)는 별도 트랙 — 저장소에는 compose 정의(`docker-compose*.yml`)만 두고,
+기동은 저장소 외부에서 관리하는 독립 배포 스크립트(`widgetrag-compose-deploy.sh`)가 compose 정의를
+raw로 받아 pull→up 으로 수행한다 (타겟에 소스·git 불필요 — 이미지가 곧 산출물).
 
 ## 주요 환경변수 (env.sh 기본값)
 
