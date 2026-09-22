@@ -257,11 +257,14 @@
     </main>
 
     <script>
-        const API_BASE =
-        (location.protocol === "file:" || ["5500", "5501", "3000"].includes(location.port))
+        // 발급 코드는 URL 파라미터로 받는다: demo-fashion.html?client=shop_xxxx
+        // 백엔드 주소 재정의(&backend=...)는 Compose/caddy 단일 오리진 검증용
+        const DEMO_PARAMS = new URLSearchParams(location.search);
+        const API_BASE = DEMO_PARAMS.get("backend") ??
+        ((location.protocol === "file:" || ["5500", "5501", "3000"].includes(location.port))
             ? "http://localhost:8080"
-            : "";
-        const CLIENT_CODE = "shop_ebb52149";
+            : "");
+        const CLIENT_CODE = DEMO_PARAMS.get("client") || "";
         let productsCache = [];
 
         function scrollToProducts() {
@@ -382,6 +385,10 @@
             try {
                 productGrid.innerHTML = `<div class="empty">상품을 불러오는 중입니다.</div>`;
 
+                if (!CLIENT_CODE) {
+                    productGrid.innerHTML = `<div class="empty">발급 코드가 없습니다 — URL에 <b>?client=발급코드</b> 를 붙여 접속하세요.<br>예: demo-fashion.html?client=shop_xxxx</div>`;
+                    return;
+                }
                 const response = await fetch(`${API_BASE}/api/product-items/public/${CLIENT_CODE}`, {
                     method: "GET"
                 });
@@ -488,10 +495,18 @@
         };
     </script>
 
-    <script
-    src="http://localhost:8080/widget.js"
-    data-client-code="YOUR_CLIENT_CODE"
-    data-backend-base="http://localhost:8080">
+    <!-- 위젯 임베드 — 데모 페이지는 발급 코드를 URL 파라미터(?client=shop_xxxx)로 받아 동적 주입한다.
+     실제 고객사 페이지에는 아래 형태의 정적 태그를 붙인다:
+     <script src="https://<서비스>/widget.js" data-client-code="발급코드" data-backend-base="https://<서비스>"></script> -->
+<script>
+    (function () {
+        if (!CLIENT_CODE) { console.warn("[demo] ?client=발급코드 미지정 — 위젯을 표시하지 않습니다"); return; }
+        const s = document.createElement("script");
+        s.src = (API_BASE || "") + "/widget.js";
+        s.dataset.clientCode = CLIENT_CODE;
+        s.dataset.backendBase = API_BASE || location.origin;
+        document.body.appendChild(s);
+    })();
 </script>
 </body>
 </html>
