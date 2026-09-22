@@ -173,7 +173,7 @@ echo
 log "앱 계층 기동 완료 ($([ "$OS" = "Linux" ] && echo 'systemd 유닛' || echo 'nohup'))"
 echo "  관리자 계정       : $WIDGETRAG_ADMIN_EMAIL (비밀번호: 환경변수 미지정 시 $ADMIN_PW_FILE 에 자동 생성됨)"
 echo "  콘솔(가입/로그인) : http://localhost:$PORT_FRONTEND/login/company-signup.html"
-echo "  데모샵(위젯)      : http://localhost:$PORT_FRONTEND/demo-shop/demo-living.html"
+echo "  데모샵(위젯)      : http://localhost:$PORT_FRONTEND/demo-shop/demo-living.html?client=<발급코드>"
 echo "  API 문서          : http://localhost:$PORT_BACKEND/swagger-ui.html"
 if [ "$OS" = "Linux" ]; then
   echo "  서비스 상태       : systemctl status widgetrag-{ai,backend,frontend}"
