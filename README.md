@@ -31,7 +31,7 @@ WidgetRAG는 온라인 쇼핑몰 운영사가 **`<script>` 태그 한 줄**만 �
 ## 🏗️ 시스템 아키텍처
 
 ```
-[고객 쇼핑몰 페이지]  ← <script src=".../widget.js" data-client-code="daiso">
+[고객 쇼핑몰 페이지]  ← <script src=".../widget.js" data-client-code="YOUR_CLIENT_CODE">
     │  질문 입력
     ▼
 [widget.js]  (Spring Boot 정적 리소스로 서빙되는 임베드형 위젯, 순수 JS IIFE)
@@ -268,7 +268,7 @@ cd backend
 - API 문서: `http://localhost:8080/swagger-ui.html`
 
 ### 4. 데모 확인
-`frontend/demo-shop/daiso.html` 또는 `66girls.html`을 브라우저로 열면, 하단에 임베드된 위젯을 통해 실제 상품 데이터를 근거로 한 챗봇 답변을 확인할 수 있습니다.
+`frontend/demo-shop/demo-living.html` 또는 `demo-fashion.html`을 브라우저로 열면, 하단에 임베드된 위젯을 통해 실제 상품 데이터를 근거로 한 챗봇 답변을 확인할 수 있습니다.
 
 ### 5. (선택) 크롤러로 데모 데이터 직접 수집
 
