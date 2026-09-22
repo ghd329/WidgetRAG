@@ -2,11 +2,15 @@
 # ===========================================================
 # [부트스트랩] 신규 VM 진입점 — 코드 확보(git) + NVIDIA 드라이버 + 실행 형태 진입
 #
-#   SSH 접속 후 사람이 치는 명령은 이 한 줄이 전부다 (postCommands 페이로드와 동일):
+#   최초 1회 (스크립트가 VM에 없는 상태 — postCommands 페이로드와 동일):
 #
 #     curl -fsSL https://raw.githubusercontent.com/ghd329/WidgetRAG/main/scripts/local/bootstrap.sh \
-#       | BRANCH=<브랜치> bash -s -- --start        # Shell 설치형(A) 완전 무인 기동
-#       | BRANCH=<브랜치> bash -s -- --compose      # Docker Compose(B) 완전 무인 기동
+#       | BRANCH=<브랜치> bash -s -- --start        # A: Shell 설치형 무인 기동 (B: --compose)
+#
+#   이후 (첫 실행이 자신을 /usr/local/bin/bootstrap.sh 로 설치하고, 브랜치는
+#   기존 clone(~/WidgetRAG)에서 자동 유도하므로 짧게 친다):
+#
+#     bootstrap.sh --start        # 또는 --compose / --install
 #
 #   동작 순서 (멱등):
 #     1) git 설치 → clone (있으면 fetch + reset --hard origin/BRANCH)
@@ -14,7 +18,8 @@
 #        ★ 재부팅 전에 systemd oneshot(widgetrag-bootstrap-resume)을 등록해두므로
 #          부팅 후 같은 단계부터 자동 재개된다 — 사람이 다시 명령을 칠 필요 없음.
 #          (클론을 드라이버보다 먼저 하는 이유: 재개 유닛이 디스크의 이 스크립트를 실행)
-#     3) 실행 형태 진입:
+#     3) 자기 설치 — clone된 스크립트를 /usr/local/bin/bootstrap.sh 로 복사 (Linux, 멱등)
+#     4) 실행 형태 진입:
 #        --install : scripts/local/install.sh          (A: 도구 설치+설정, 기동 전까지)
 #        --start   : install.sh → start.sh             (A: 기동+헬스체크까지)
 #        --compose : scripts/compose/setup.sh          (B: Docker+toolkit+.env+up까지)
@@ -23,7 +28,7 @@
 #   환경변수:
 #     REPO_URL   (기본 https://github.com/ghd329/WidgetRAG.git — public, 자격증명 불필요.
 #                 Cloud-Barista Private 이전 시 deploy key/PAT 주입 방식 협의 필요)
-#     BRANCH     (기본 main) · COMMIT (선택 — 해시 고정, 실증 재현성용)
+#     BRANCH     (미지정 시: 기존 clone의 현재 브랜치 → 없으면 main) · COMMIT (해시 고정, 실증 재현성용)
 #     TARGET_DIR (기본 $HOME/WidgetRAG)
 #     NO_DRIVER=1  드라이버 단계 스킵 (GPU 없는 검증 VM 등)
 #
@@ -32,7 +37,7 @@
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/ghd329/WidgetRAG.git}"
-BRANCH="${BRANCH:-main}"
+BRANCH="${BRANCH:-}"          # 미지정 시: 기존 clone의 현재 브랜치 → 없으면 main
 COMMIT="${COMMIT:-}"
 TARGET_DIR="${TARGET_DIR:-$HOME/WidgetRAG}"
 MODE="${1:-}"
@@ -50,11 +55,20 @@ if ! command -v git >/dev/null 2>&1; then
 fi
 
 if [ -d "$TARGET_DIR/.git" ]; then
-  log "기존 저장소 갱신: $TARGET_DIR (origin/$BRANCH 기준으로 동기화)"
-  git -C "$TARGET_DIR" fetch origin
-  git -C "$TARGET_DIR" checkout "$BRANCH"
-  git -C "$TARGET_DIR" reset --hard "origin/$BRANCH"
+  if [ -z "$BRANCH" ]; then
+    # 기존 clone의 브랜치를 그대로 따라간다 — 짧은 재실행(bootstrap.sh --start)의 핵심
+    BRANCH="$(git -C "$TARGET_DIR" symbolic-ref --short -q HEAD || true)"
+  fi
+  if [ -z "$BRANCH" ]; then
+    log "기존 저장소가 커밋 고정(detached) 상태 — 갱신 없이 현재 코드로 진행 (갱신하려면 BRANCH= 지정)"
+  else
+    log "기존 저장소 갱신: $TARGET_DIR (origin/$BRANCH 기준으로 동기화)"
+    git -C "$TARGET_DIR" fetch origin
+    git -C "$TARGET_DIR" checkout "$BRANCH"
+    git -C "$TARGET_DIR" reset --hard "origin/$BRANCH"
+  fi
 else
+  BRANCH="${BRANCH:-main}"
   # rsync 시절 사본 등 git 저장소가 아닌 디렉토리가 있으면 백업 후 clone
   # (저장소 디렉토리의 내용물은 전부 재생성 가능 — 운영 데이터는 ~/widgetrag-data에 별도)
   if [ -e "$TARGET_DIR" ] && [ -n "$(ls -A "$TARGET_DIR" 2>/dev/null)" ]; then
@@ -66,7 +80,15 @@ else
   git clone -b "$BRANCH" "$REPO_URL" "$TARGET_DIR"
 fi
 [ -n "$COMMIT" ] && { log "커밋 고정: $COMMIT"; git -C "$TARGET_DIR" checkout --quiet "$COMMIT"; }
-log "코드 준비 완료: $(git -C "$TARGET_DIR" rev-parse --short HEAD) (요청: ${COMMIT:-$BRANCH})"
+log "코드 준비 완료: $(git -C "$TARGET_DIR" rev-parse --short HEAD) (요청: ${COMMIT:-${BRANCH:-현재 커밋}})"
+
+# ---------- 1.5 자기 설치 — 이후에는 어디서든 `bootstrap.sh --start` 로 호출 ----------
+if [ "$(uname -s)" = "Linux" ]; then
+  if ! cmp -s "$TARGET_DIR/scripts/local/bootstrap.sh" /usr/local/bin/bootstrap.sh 2>/dev/null; then
+    sudo install -m 755 "$TARGET_DIR/scripts/local/bootstrap.sh" /usr/local/bin/bootstrap.sh
+    log "커맨드 설치: /usr/local/bin/bootstrap.sh — 다음부터는 'bootstrap.sh --start' 로 실행"
+  fi
+fi
 
 # ---------- 2. NVIDIA 드라이버 (Linux + GPU 존재 시) ----------
 need_driver() {
