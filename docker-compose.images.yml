@@ -10,16 +10,18 @@
 #   docker compose -f docker-compose.yml -f docker-compose.images.yml pull
 #   docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --no-build
 #
-# 태그 규칙: 단일 프라이빗 리포(widgetrag)에 서비스별 태그
+# 태그 규칙: 단일 리포(widgetrag)에 서비스별 태그
+#   v0.1.0 = PostgreSQL·EXAONE 구성 (구버전 — 현재 compose와 비호환)
+#   v0.2.0 = SQLite·Gemma·비민감화 반영 (feat/20260922-change-sqlite 이후)
 #   (무료 플랜의 프라이빗 리포 개수 제한 회피)
 # Harbor 전환 시: DOCKERHUB_USER 대신 <harbor주소/프로젝트> 로 치환
 # ===========================================================
 services:
   backend:
-    image: ${DOCKERHUB_USER:?DOCKERHUB_USER를 .env에 설정하세요}/widgetrag:backend-${IMAGE_TAG:-v0.1.0}
+    image: ${DOCKERHUB_USER:?DOCKERHUB_USER를 .env에 설정하세요}/widgetrag:backend-${IMAGE_TAG:-v0.2.0}
   ai-server:
-    image: ${DOCKERHUB_USER:?DOCKERHUB_USER를 .env에 설정하세요}/widgetrag:ai-server-${IMAGE_TAG:-v0.1.0}
+    image: ${DOCKERHUB_USER:?DOCKERHUB_USER를 .env에 설정하세요}/widgetrag:ai-server-${IMAGE_TAG:-v0.2.0}
   frontend:
-    image: ${DOCKERHUB_USER:?DOCKERHUB_USER를 .env에 설정하세요}/widgetrag:frontend-${IMAGE_TAG:-v0.1.0}
+    image: ${DOCKERHUB_USER:?DOCKERHUB_USER를 .env에 설정하세요}/widgetrag:frontend-${IMAGE_TAG:-v0.2.0}
   llm:
-    image: ${DOCKERHUB_USER:?DOCKERHUB_USER를 .env에 설정하세요}/widgetrag:llm-${IMAGE_TAG:-v0.1.0}
+    image: ${DOCKERHUB_USER:?DOCKERHUB_USER를 .env에 설정하세요}/widgetrag:llm-${IMAGE_TAG:-v0.2.0}
