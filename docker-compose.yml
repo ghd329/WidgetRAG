@@ -1,8 +1,11 @@
 # WidgetRag 배포 구성
 #
-#   frontend(nginx:80) ──/api──> backend(8080) ──> postgres(5432)
+#   frontend(nginx:80) ──/api──> backend(8080) ──> SQLite(/data/widgetrag/widgetrag.db, 임베디드)
 #                                              ──> opensearch(9200)
 #                                              ──> ai-server(8000) ──> llm(ollama:11434)
+#
+# DB는 SQLite 임베디드로 동작합니다 — 별도 DB 컨테이너가 없으며,
+# DB 파일은 upload-data 볼륨에 저장되어 볼륨 이관 시 데이터도 함께 이동합니다.
 #
 # 사전 준비
 #   1) .env 파일 생성 (.env.example 복사)
@@ -12,21 +15,6 @@
 # data-pipeline은 일회성 크롤링 스크립트라 배포 대상이 아닙니다 (의도적으로 제외).
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: ${DB_NAME:-widgetrag}
-      POSTGRES_USER: ${DB_USERNAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME:-widgetrag}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
-
   opensearch:
     image: opensearchproject/opensearch:2.18.0
     environment:
@@ -87,10 +75,6 @@ services:
     build: ./backend
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      DB_HOST: postgres
-      DB_NAME: ${DB_NAME:-widgetrag}
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
       OPENSEARCH_HOST: opensearch
       AI_SERVER_BASE_URL: http://ai-server:8000
       # 최초 기동 시 생성할 관리자 계정. 비어 있으면 계정을 만들지 않습니다.
@@ -105,10 +89,9 @@ services:
       SESSION_SECURE: ${SESSION_SECURE:-false}
       SESSION_SAME_SITE: ${SESSION_SAME_SITE:-lax}
     volumes:
+      # 업로드 파일 + SQLite DB 파일(widgetrag.db)이 함께 저장됩니다.
       - upload-data:/data/widgetrag
     depends_on:
-      postgres:
-        condition: service_healthy
       opensearch:
         condition: service_healthy
     restart: unless-stopped
@@ -137,7 +120,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres-data:
   opensearch-data:
   ollama-data:
   upload-data:

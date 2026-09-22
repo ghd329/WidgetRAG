@@ -1,10 +1,14 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/widgetrag
-    username: your_username
-    password: your_password
-    driver-class-name: org.postgresql.Driver
+    # SQLite 임베디드 DB — 별도 서버 불필요. 파일이 없으면 자동 생성됩니다.
+    # 디렉토리는 미리 존재해야 합니다 (storage.base-path와 같은 경로 권장).
+    url: jdbc:sqlite:/home/your_username/widgetrag-data/widgetrag.db?journal_mode=WAL&busy_timeout=5000
+    driver-class-name: org.sqlite.JDBC
 
 widgetrag:
   storage:
-    base-path: \\wsl$\Ubuntu\home\your_wsl_username\widgetrag-data
+    base-path: /home/your_username/widgetrag-data
+
+widget:
+  # 임베드 스크립트 태그 발급 시 안내되는 widget.js 공개 URL (백엔드 정적 리소스)
+  script-base-url: http://localhost:8080/widget.js

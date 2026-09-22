@@ -7,7 +7,7 @@
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Embedding_%26_LLM-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![OpenSearch](https://img.shields.io/badge/OpenSearch-k--NN_Vector_Search-005EB8?style=flat-square&logo=opensearch&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-Embedded_Database-003B57?style=flat-square&logo=sqlite&logoColor=white)
 ![Ollama](https://img.shields.io/badge/Ollama-EXAONE_3.5-000000?style=flat-square)
 
 ---
@@ -69,7 +69,7 @@ WidgetRAG는 온라인 쇼핑몰 운영사가 **`<script>` 태그 한 줄**만 �
 |------|------|
 | 프레임워크 | Spring Boot 4.1.0 (Java 17), `spring-boot-starter-webmvc` |
 | 인증 | Spring Security (BCrypt) + **세션 기반 인증** (JWT 미사용, `HttpSession` 속성으로 로그인 상태 관리) |
-| ORM/DB | Spring Data JPA + PostgreSQL, `ddl-auto: update` |
+| ORM/DB | Spring Data JPA + SQLite(임베디드, 파일 DB), `ddl-auto: update` |
 | 벡터 검색 | `opensearch-java` / `opensearch-rest-client` 3.5.0 — k-NN(HNSW, cosine) 벡터 인덱스 |
 | CSV 처리 | Apache Commons CSV 1.14.1 (BOM 대응, 컬럼 매핑 저장/재사용) |
 | 문서화 | springdoc-openapi (Swagger UI) |
@@ -232,7 +232,7 @@ WidgetRAG/
 |------|------|------|
 | `client_code` | keyword | 테넌트 격리 필터 키 |
 | `company_id` | long | 소속 회사 식별자 |
-| `product_item_id` | long | 상품 아이템 식별자 (PostgreSQL `ProductItem`과 매핑) |
+| `product_item_id` | long | 상품 아이템 식별자 (SQLite `ProductItem`과 매핑) |
 | `product_name` | text | 상품명 |
 | `price` | integer | 가격 |
 | `categories` | keyword | 카테고리 |
@@ -246,8 +246,8 @@ WidgetRAG/
 ## 🚀 실행 방법
 
 ### 1. 사전 준비
-- PostgreSQL, OpenSearch(로컬 9200) 실행
-- `backend/src/main/resources/application-local.yaml.example`을 복사해 DB 접속정보 입력
+- OpenSearch(로컬 9200) 실행 — 관계형 DB는 SQLite 임베디드라 별도 실행 불필요
+- `backend/src/main/resources/application-local.yaml.example`을 복사해 SQLite 파일 경로 등 입력
 - AI 서버용 GPU 환경 (EXAONE 사용 시 Ollama 실행 + `exaone3.5:7.8b` pull, Gemma 사용 시 HuggingFace 모델 다운로드)
 
 ### 2. AI 서버 실행
@@ -291,7 +291,7 @@ python fashion/crawl_66girls.py
 | OpenSearch Client | 3.5.0 |
 | 임베딩 모델 | BAAI/bge-m3 (1024차원) |
 | LLM | EXAONE 3.5 7.8B (Ollama) / Gemma 3 4B-IT (transformers) |
-| DB | PostgreSQL 17 |
+| DB | SQLite (임베디드, sqlite-jdbc 3.49) |
 | 실행 환경(GPU) | WSL2 Ubuntu 24.04, RTX 2000 Ada 16GB VRAM (로컬 GPU 추론 — 외부 API 미사용으로 비용·지연시간 절감, 멀티테넌시 데이터 유출 방지) |
 
 ---
