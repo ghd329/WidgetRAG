@@ -7,7 +7,7 @@
 #     CLIENT_CODE=shop_xxxx ./50-verify.sh    # RAG 챗봇 E2E 스모크 테스트까지 (+ 타임존 검증)
 #     RUNS=5 CLIENT_CODE=... ./50-verify.sh   # 반복 검증 — N회 연속 자동판정 + verify-history.tsv 누적
 #     FORM=aws-shell RUNS=5 ... ./50-verify.sh  # 결과표에 환경 이름 태깅 (CSP 간·형태 간 비교용)
-#                                               # 미지정 시 shell-$INFRA_MODE (예: shell-native)
+#                                               # 미지정 시 shell-native
 #
 #   LexAI 병행 검증(2026-09-22)에서 이식한 장치:
 #     - 반복 검증: 단발 통과는 우연일 수 있다 — 종료코드 기반 자동판정을 N회 누적,
@@ -23,7 +23,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 if [ "${RUNS:-1}" -gt 1 ] && [ -z "${_VERIFY_CHILD:-}" ]; then
   # FORM: 결과표의 환경 이름 — 여러 CSP·실행 형태를 오가며 잰 결과를 한 표에서 비교하기 위한
   # 태그 (LexAI 병행 검증에서 이식). 예: FORM=aws-shell, FORM=gcp-shell, FORM=aws-docker
-  FORM="${FORM:-shell-$INFRA_MODE}"
+  FORM="${FORM:-shell-native}"
   HISTORY="$SCRIPT_DIR/verify-history.tsv"
   [ -f "$HISTORY" ] || printf '# 시각\t형태\t회차\t판정\t챗응답(s)\n' > "$HISTORY"
   PASS_RUNS=0
@@ -50,7 +50,7 @@ check() {  # $1=이름 $2=명령...
   fi
 }
 
-echo "== WidgetRAG 상태 점검 (INFRA_MODE=$INFRA_MODE) =="
+echo "== WidgetRAG 상태 점검 (shell 설치형 — 전부 네이티브) =="
 # SQLite는 서버가 아니라 파일 — 백엔드 최초 기동 시 자동 생성된다
 check "SQLite DB    ($SQLITE_DB_FILE)"   test -s "$SQLITE_DB_FILE"
 check "OpenSearch   (:$PORT_OPENSEARCH)" curl -fsS --max-time 5 "http://localhost:$PORT_OPENSEARCH/_cluster/health"

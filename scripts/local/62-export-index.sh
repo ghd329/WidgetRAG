@@ -17,9 +17,8 @@
 #     ./62-export-index.sh [출력디렉토리]                      # 기본: ./exports
 #     OBJECT_STORAGE_URI=s3://bucket/widgetrag ./62-export-index.sh
 #
-#   선행 조건: OpenSearch에 path.repo 설정 — native 모드는 이 스크립트가 최초 1회
-#   자동 구성(opensearch.yml 등록 + 재시작), container 모드는 20-start-infra.sh가
-#   생성한 컨테이너에 이미 설정돼 있다(구버전 컨테이너는 재생성 필요 — 실패 시 안내).
+#   선행 조건: OpenSearch에 path.repo 설정 — 최초 1회는 이 스크립트가 자동 구성
+#   (opensearch.yml 등록 + 재시작).
 # ===========================================================
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
@@ -30,15 +29,10 @@ BASE="widgetrag-index-$TS"
 OS_URL="http://localhost:$PORT_OPENSEARCH"
 REPO_NAME="widgetrag"
 SNAPSHOT="snap-$TS"
-if [ "$INFRA_MODE" = "native" ]; then
-  REPO_LOC="/var/lib/opensearch/snapshots"     # 호스트 경로 (opensearch 소유)
-else
-  REPO_LOC="/usr/share/opensearch/snapshots"   # 컨테이너 내부 경로
-fi
+REPO_LOC="/var/lib/opensearch/snapshots"   # opensearch 소유의 호스트 경로
 
-sha256() {  # 파일 목록을 stdin으로 받아 "해시  경로" 출력 (Linux/macOS 겸용)
-  if command -v sha256sum >/dev/null 2>&1; then xargs -r sha256sum
-  else xargs shasum -a 256; fi
+sha256() {  # 파일 목록을 stdin으로 받아 "해시  경로" 출력
+  xargs -r sha256sum
 }
 
 # ---------- 0. 사전 점검 (무중지 — 서비스는 떠 있어야 한다) ----------
@@ -51,19 +45,13 @@ register_repo() {
     -d "{\"type\":\"fs\",\"settings\":{\"location\":\"$REPO_LOC\"}}" >/dev/null 2>&1
 }
 if ! register_repo; then
-  if [ "$INFRA_MODE" = "native" ]; then
-    log "path.repo 미구성 — opensearch.yml 등록 + 재시작 (최초 1회)"
-    grep -q '^path.repo' /etc/opensearch/opensearch.yml 2>/dev/null \
-      || echo "path.repo: [\"$REPO_LOC\"]" | sudo tee -a /etc/opensearch/opensearch.yml >/dev/null
-    sudo install -d -o opensearch -g opensearch "$REPO_LOC"
-    sudo systemctl restart opensearch
-    wait_for_http "$OS_URL/_cluster/health" "OpenSearch" 120
-    register_repo || die "리포지토리 등록 실패 — /etc/opensearch/opensearch.yml 의 path.repo 확인"
-  else
-    die "리포지토리 등록 실패 — 컨테이너에 path.repo 미설정 (구버전 컨테이너).
-  재생성: docker rm -f $OS_CONTAINER && ./20-start-infra.sh
-  (⚠️ 색인이 함께 삭제되므로 CSV 재업로드 또는 63-import-index.sh 재복원 필요)"
-  fi
+  log "path.repo 미구성 — opensearch.yml 등록 + 재시작 (최초 1회)"
+  grep -q '^path.repo' /etc/opensearch/opensearch.yml 2>/dev/null \
+    || echo "path.repo: [\"$REPO_LOC\"]" | sudo tee -a /etc/opensearch/opensearch.yml >/dev/null
+  sudo install -d -o opensearch -g opensearch "$REPO_LOC"
+  sudo systemctl restart opensearch
+  wait_for_http "$OS_URL/_cluster/health" "OpenSearch" 120
+  register_repo || die "리포지토리 등록 실패 — /etc/opensearch/opensearch.yml 의 path.repo 확인"
 fi
 log "스냅샷 리포지토리 준비 완료: $REPO_NAME → $REPO_LOC"
 
@@ -83,14 +71,8 @@ log "문서 수 기준선: $DOCCOUNT ($(wc -l < "$DOCCOUNT" | tr -d ' ')개 인�
 # ---------- 4. 리포지토리 아카이브 + 해시 ----------
 ARCHIVE="$OUT_DIR/$BASE.tgz"
 log "리포지토리 아카이브 생성: $ARCHIVE (누적 스냅샷 전체 포함)"
-if [ "$INFRA_MODE" = "native" ]; then
-  sudo tar -czf "$ARCHIVE" -C "$REPO_LOC" .
-  sudo chown "$USER" "$ARCHIVE"
-else
-  docker exec "$OS_CONTAINER" tar -czf /tmp/os-snap.tgz -C "$REPO_LOC" .
-  docker cp "$OS_CONTAINER:/tmp/os-snap.tgz" "$ARCHIVE" >/dev/null
-  docker exec "$OS_CONTAINER" rm -f /tmp/os-snap.tgz
-fi
+sudo tar -czf "$ARCHIVE" -C "$REPO_LOC" .
+sudo chown "$USER" "$ARCHIVE"
 ( cd "$OUT_DIR" && echo "$BASE.tgz" | sha256 ) > "$ARCHIVE.sha256"
 
 log "내보내기 완료"

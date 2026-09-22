@@ -22,13 +22,8 @@ SRC="${1:-}"
 [ -n "$SRC" ] || die "사용법: $0 <widgetrag-data-*.tgz 경로 또는 s3://...>"
 port_listening "$PORT_BACKEND" && die "백엔드(:$PORT_BACKEND)가 실행 중 — 복원 전에 중지하세요"
 
-sha256() {
-  if command -v sha256sum >/dev/null 2>&1; then xargs -r sha256sum
-  else xargs shasum -a 256; fi
-}
 sha256_check() {  # $1=매니페스트/해시 파일 (현재 디렉토리 기준 검증)
-  if command -v sha256sum >/dev/null 2>&1; then sha256sum -c "$1" --quiet
-  else shasum -a 256 -c "$1" --quiet; fi
+  sha256sum -c "$1" --quiet
 }
 
 # ---------- 1. 아카이브 확보 ----------
@@ -74,14 +69,12 @@ tar -xzf "$ARCHIVE" -C "$STORAGE_DIR"
 
 # ---------- 4. 정합성 검증 (개수 · 용량 · 해시) ----------
 log "파일별 해시 대조 (매니페스트 기준)"
-( cd "$STORAGE_DIR" && grep -v '^#' "$MANIFEST" | \
-  { if command -v sha256sum >/dev/null 2>&1; then sha256sum -c - --quiet; else shasum -a 256 -c - --quiet; fi; } ) \
+( cd "$STORAGE_DIR" && grep -v '^#' "$MANIFEST" | sha256sum -c - --quiet ) \
   || die "해시 불일치 파일 있음 — 이관 정합성 실패"
 
 EXPECTED_COUNT="$(grep -vc '^#' "$MANIFEST")"
 ACTUAL_COUNT="$(cd "$STORAGE_DIR" && find . -type f | wc -l | tr -d ' ')"
-ACTUAL_BYTES="$(cd "$STORAGE_DIR" && find . -type f -print0 | xargs -0 stat -f%z 2>/dev/null | awk '{s+=$1} END{print s}' || true)"
-[ -n "$ACTUAL_BYTES" ] || ACTUAL_BYTES="$(cd "$STORAGE_DIR" && find . -type f -print0 | xargs -0 stat -c%s | awk '{s+=$1} END{print s}')"
+ACTUAL_BYTES="$(cd "$STORAGE_DIR" && find . -type f -print0 | xargs -0 stat -c%s | awk '{s+=$1} END{print s}')"
 
 echo
 log "이관 정합성 검증 결과"

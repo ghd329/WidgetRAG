@@ -29,9 +29,8 @@ BASE="widgetrag-data-$TS"
 ARCHIVE="$OUT_DIR/$BASE.tgz"
 MANIFEST="$OUT_DIR/$BASE.manifest"
 
-sha256() {  # 파일 목록을 stdin으로 받아 "해시  경로" 출력 (Linux/macOS 겸용)
-  if command -v sha256sum >/dev/null 2>&1; then xargs -r sha256sum
-  else xargs shasum -a 256; fi
+sha256() {  # 파일 목록을 stdin으로 받아 "해시  경로" 출력
+  xargs -r sha256sum
 }
 
 # ---------- 0. 사전 점검 ----------
@@ -60,8 +59,7 @@ log "매니페스트 생성: $MANIFEST"
 # -shm/-wal은 런타임 부산물이라 이관 대상에서 제외 (체크포인트 후엔 없거나 빈 파일)
 ( cd "$STORAGE_DIR" && find . -type f ! -name '*.db-wal' ! -name '*.db-shm' | LC_ALL=C sort | sha256 ) > "$MANIFEST"
 FILE_COUNT="$(wc -l < "$MANIFEST" | tr -d ' ')"
-TOTAL_BYTES="$(cd "$STORAGE_DIR" && find . -type f ! -name '*.db-wal' ! -name '*.db-shm' -print0 | xargs -0 stat -f%z 2>/dev/null | awk '{s+=$1} END{print s}' || true)"
-[ -n "$TOTAL_BYTES" ] || TOTAL_BYTES="$(cd "$STORAGE_DIR" && find . -type f ! -name '*.db-wal' ! -name '*.db-shm' -print0 | xargs -0 stat -c%s | awk '{s+=$1} END{print s}')"
+TOTAL_BYTES="$(cd "$STORAGE_DIR" && find . -type f ! -name '*.db-wal' ! -name '*.db-shm' -print0 | xargs -0 stat -c%s | awk '{s+=$1} END{print s}')"
 {
   echo "# 요약: 파일 $FILE_COUNT 개, 총 $TOTAL_BYTES 바이트, 생성 $TS"
   echo "# 검증: 타겟에서 ./61-import-data.sh 가 이 매니페스트로 개수·용량·해시를 대조한다"

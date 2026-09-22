@@ -23,15 +23,10 @@ SRC="${1:-}"
 [ -n "$SRC" ] || die "사용법: $0 <widgetrag-index-*.tgz 경로 또는 s3://...> [스냅샷명]"
 OS_URL="http://localhost:$PORT_OPENSEARCH"
 REPO_NAME="widgetrag"
-if [ "$INFRA_MODE" = "native" ]; then
-  REPO_LOC="/var/lib/opensearch/snapshots"
-else
-  REPO_LOC="/usr/share/opensearch/snapshots"
-fi
+REPO_LOC="/var/lib/opensearch/snapshots"   # opensearch 소유의 호스트 경로
 
 sha256_check() {  # $1=해시 파일 (현재 디렉토리 기준 검증)
-  if command -v sha256sum >/dev/null 2>&1; then sha256sum -c "$1" --quiet
-  else shasum -a 256 -c "$1" --quiet; fi
+  sha256sum -c "$1" --quiet
 }
 os_json() {  # $1=경로 $2=python 표현식 — OpenSearch 응답 JSON에서 값 추출
   curl -fsS "$OS_URL$1" | python3 -c "import sys,json; d=json.load(sys.stdin); print($2)"
@@ -73,27 +68,21 @@ fi
 
 # ---------- 3. 리포지토리 배치 + 등록 ----------
 log "스냅샷 리포지토리 배치: $REPO_LOC"
-if [ "$INFRA_MODE" = "native" ]; then
-  grep -q '^path.repo' /etc/opensearch/opensearch.yml 2>/dev/null || {
-    log "path.repo 미구성 — opensearch.yml 등록 + 재시작 (최초 1회)"
-    echo "path.repo: [\"$REPO_LOC\"]" | sudo tee -a /etc/opensearch/opensearch.yml >/dev/null
-    NEED_RESTART=1
-  }
-  sudo install -d -o opensearch -g opensearch "$REPO_LOC"
-  sudo tar -xzf "$ARCHIVE" -C "$REPO_LOC"
-  sudo chown -R opensearch:opensearch "$REPO_LOC"
-  if [ -n "${NEED_RESTART:-}" ]; then
-    sudo systemctl restart opensearch
-    wait_for_http "$OS_URL/_cluster/health" "OpenSearch" 120
-  fi
-else
-  docker cp "$ARCHIVE" "$OS_CONTAINER:/tmp/os-snap.tgz" >/dev/null
-  docker exec -u 0 "$OS_CONTAINER" sh -c \
-    "mkdir -p $REPO_LOC && tar -xzf /tmp/os-snap.tgz -C $REPO_LOC && chown -R 1000:1000 $REPO_LOC && rm -f /tmp/os-snap.tgz"
+grep -q '^path.repo' /etc/opensearch/opensearch.yml 2>/dev/null || {
+  log "path.repo 미구성 — opensearch.yml 등록 + 재시작 (최초 1회)"
+  echo "path.repo: [\"$REPO_LOC\"]" | sudo tee -a /etc/opensearch/opensearch.yml >/dev/null
+  NEED_RESTART=1
+}
+sudo install -d -o opensearch -g opensearch "$REPO_LOC"
+sudo tar -xzf "$ARCHIVE" -C "$REPO_LOC"
+sudo chown -R opensearch:opensearch "$REPO_LOC"
+if [ -n "${NEED_RESTART:-}" ]; then
+  sudo systemctl restart opensearch
+  wait_for_http "$OS_URL/_cluster/health" "OpenSearch" 120
 fi
 curl -fsS -X PUT "$OS_URL/_snapshot/$REPO_NAME" -H 'Content-Type: application/json' \
   -d "{\"type\":\"fs\",\"settings\":{\"location\":\"$REPO_LOC\"}}" >/dev/null \
-  || die "리포지토리 등록 실패 — path.repo 설정 확인 (container 모드는 20-start-infra.sh 로 컨테이너 재생성)"
+  || die "리포지토리 등록 실패 — /etc/opensearch/opensearch.yml 의 path.repo 확인"
 
 # ---------- 4. 스냅샷 선택 (기본: 최신 = 증분 컷오버의 2차 스냅샷) ----------
 SNAPSHOT="${2:-}"

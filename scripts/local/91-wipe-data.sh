@@ -7,11 +7,11 @@
 #
 #   삭제 대상:
 #     - $STORAGE_DIR (SQLite DB + 업로드 파일)
-#     - OpenSearch 색인 (native: /var/lib/opensearch/nodes / container: 컨테이너 자체)
+#     - OpenSearch 색인 (/var/lib/opensearch/nodes)
 #   유지 대상:
 #     - Ollama 모델 (이관 대상 아님 — 재다운로드 가능하나 삭제할 이유 없음)
 #     - scripts/local/.admin-password (이관된 DB의 기존 계정과 짝 — 지우면 로그인 불가)
-#     - 소스코드·설정 스크립트, native 모드의 스냅샷 리포지토리(/var/lib/opensearch/snapshots)
+#     - 소스코드·설정 스크립트, 스냅샷 리포지토리(/var/lib/opensearch/snapshots)
 #
 #   사용법:
 #     ./91-wipe-data.sh --yes     # --yes 없이는 안내만 출력하고 아무것도 지우지 않는다
@@ -29,11 +29,7 @@ if [ "${1:-}" != "--yes" ]; then
   cat <<EOF
 [widgetrag] 완전 삭제 대상 (아직 아무것도 지우지 않았음):
   - $STORAGE_DIR  (SQLite DB + 업로드 파일)
-$( if [ "$INFRA_MODE" = "native" ]; then
-     echo "  - /var/lib/opensearch/nodes  (색인 — 스냅샷 리포지토리는 유지)"
-   else
-     echo "  - 컨테이너 $OS_CONTAINER  (색인 포함 — 컨테이너 내 스냅샷 리포지토리도 함께 삭제됨)"
-   fi )
+  - /var/lib/opensearch/nodes  (색인 — 스냅샷 리포지토리는 유지)
 유지: Ollama 모델, .admin-password, 소스코드
 
 실행하려면: $0 --yes
@@ -42,7 +38,7 @@ EOF
 fi
 
 log "전체 종료 (데이터 삭제 전 정합 정지)"
-"$SCRIPT_DIR/90-stop-all.sh" --keep-vm || true
+"$SCRIPT_DIR/90-stop-all.sh" || true
 
 # ---------- SQLite DB + 업로드 파일 ----------
 if [ -d "$STORAGE_DIR" ]; then
@@ -53,17 +49,9 @@ else
 fi
 
 # ---------- OpenSearch 색인 ----------
-if [ "$INFRA_MODE" = "native" ]; then
-  if [ -d /var/lib/opensearch/nodes ]; then
-    sudo rm -rf /var/lib/opensearch/nodes
-    log "삭제: /var/lib/opensearch/nodes (색인 — 스냅샷 리포지토리는 유지)"
-  fi
-else
-  if docker ps -a --format '{{.Names}}' | grep -qx "$OS_CONTAINER"; then
-    docker rm -f "$OS_CONTAINER" >/dev/null
-    log "삭제: 컨테이너 $OS_CONTAINER (색인 포함)"
-    warn "컨테이너 내 스냅샷 리포지토리도 함께 삭제됨 — 복원은 호스트의 아카이브(62 산출물)로 수행"
-  fi
+if [ -d /var/lib/opensearch/nodes ]; then
+  sudo rm -rf /var/lib/opensearch/nodes
+  log "삭제: /var/lib/opensearch/nodes (색인 — 스냅샷 리포지토리는 유지)"
 fi
 
 echo

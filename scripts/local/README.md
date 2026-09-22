@@ -4,6 +4,9 @@
 IDE·수작업 없이 셸 커맨드 절차만으로 전체 스택을 설치·기동·검증·종료한다.
 계획서의 실행 형태 2종 중 **"shell 설치형"** 에 해당한다 (Docker Compose 형태는 별도).
 
+> **실증 환경(Ubuntu Linux GPU VM) 전용** — 전 구성요소 네이티브(Docker 없음)이며,
+> macOS 등 로컬 우회 경로는 두지 않는다. 로컬 검증이 필요하면 Docker Compose(B) 트랙을 사용.
+
 ## 기동 절차 — 커맨드 2개
 
 요구사항 예시(`npm install` 후 `npm run prod`)와 동일한 2단계 인터페이스:
@@ -22,7 +25,7 @@ cd scripts/local
 CLIENT_CODE=shop_xxxx ./50-verify.sh   # RAG 챗봇 스모크 테스트 + 타임존 검증까지
 RUNS=5 CLIENT_CODE=... ./50-verify.sh  # 반복 검증 — N회 연속 자동판정, verify-history.tsv 누적
 FORM=aws-shell RUNS=5 ... ./50-verify.sh  # 결과표에 환경 이름 태깅 — CSP 간·형태 간 비교용
-                                          # (미지정 시 shell-$INFRA_MODE 자동)
+                                          # (미지정 시 shell-native)
 ```
 
 ## 서비스별 표준 커맨드 (래퍼가 내부에서 수행하는 순정 절차)
@@ -34,9 +37,9 @@ FORM=aws-shell RUNS=5 ... ./50-verify.sh  # 결과표에 환경 이름 태깅 �
 | AI 서버 (FastAPI) | `python3.12 -m venv .venv && .venv/bin/pip install -r requirements_exaone.txt` | Linux: systemd `widgetrag-ai` (ExecStart=`.venv/bin/uvicorn main_exaone:app --host 0.0.0.0 --port 8000`) |
 | 백엔드 (Spring Boot) | `./mvnw package -DskipTests` | Linux: systemd `widgetrag-backend` (ExecStart=`java -jar target/backend-*.jar --spring.profiles.active=local`, 환경변수는 `/etc/widgetrag/widgetrag.env`) |
 | 프론트엔드 (정적) | 빌드 불필요 | Linux: systemd `widgetrag-frontend` (ExecStart=`python3 -m http.server 5500 --directory frontend`) |
-| LLM (Ollama) | `ollama pull gemma3:4b` (기본 — Gemma 약관 OLA 표기) | 시스템 서비스 (brew services / systemd) |
+| LLM (Ollama) | `ollama pull gemma3:4b` (기본 — Gemma 약관 OLA 표기) | 시스템 서비스 (systemd) |
 | SQLite (임베디드) | 설치 불필요 — 백엔드 jar에 드라이버 포함 | 없음 (백엔드 프로세스 내장, DB 파일: `~/widgetrag-data/widgetrag.db`) |
-| OpenSearch 2.18 | 공식 apt 저장소 + `apt install opensearch=2.18.0` *(native 모드)* | systemd 서비스 |
+| OpenSearch 2.18 | 공식 apt 저장소 + `apt install opensearch=2.18.0` | systemd 서비스 |
 
 ## 단계별 실행 (상세 — 래퍼의 내부 구성)
 
@@ -45,8 +48,8 @@ FORM=aws-shell RUNS=5 ... ./50-verify.sh  # 결과표에 환경 이름 태깅 �
 ```bash
 ./bootstrap.sh            # [진입점] git clone + NVIDIA 드라이버(재부팅 자동 재개) + 형태 진입 — 신규 VM·postCommands용
 #                           --start: shell 설치형(A) 무인 기동 · --compose: Docker Compose(B) 무인 기동 (../compose/setup.sh)
-./10-install-tools.sh     # [Phase A] 도구 설치 (brew / apt)
-./20-start-infra.sh       # [Phase B] OpenSearch(컨테이너) + Ollama + 모델 확보
+./10-install-tools.sh     # [Phase A] 도구 설치 (apt — JDK·Python·OpenSearch·Ollama)
+./20-start-infra.sh       # [Phase B] OpenSearch(systemd) + Ollama + 모델 확보
 ./30-setup-config.sh      # [Phase C] application-local.yaml 생성 + 저장 디렉토리
 ./40-start-apps.sh        # [Phase D~F] AI 서버(venv) → 백엔드(java -jar) → 프론트 기동
 ./50-verify.sh            # 6개 구성요소 + 모델 헬스 체크 + SQLite 기능 등가성 (RUNS=N 반복 검증)
@@ -72,17 +75,11 @@ FORM=aws-shell RUNS=5 ... ./50-verify.sh  # 결과표에 환경 이름 태깅 �
 CLIENT_CODE=shop_xxxxxxxx ./50-verify.sh
 ```
 
-## 인프라 실행 모드 (`INFRA_MODE`) — 순수 형태 원칙
+## 순수 형태 원칙
 
-Track A(shell 설치형)는 **전 구성요소 네이티브**가 원칙이다 (Docker 불필요).
-DB의 실행 방식은 `INFRA_MODE`로 분기하며, OS별 기본값이 다르다:
-
-| 모드 | OpenSearch | 기본 적용 | 용도 |
-|---|---|---|---|
-| `native` | apt 직접 설치 + systemd | **Linux (EC2)** | 실증용 순수 shell 설치형 — 이 VM엔 Docker 자체가 없음 |
-| `container` | docker run | macOS | 로컬 개발 검증용 (맥은 네이티브 OpenSearch가 비현실적) |
-
-강제 지정: `INFRA_MODE=container ./start.sh` 처럼 앞에 붙인다.
+Track A(shell 설치형)는 **전 구성요소 네이티브**다 — 이 VM에는 Docker 자체가 없고,
+OpenSearch는 apt 직접 설치 + systemd, 앱 3종도 systemd 유닛으로 뜬다.
+스크립트는 Ubuntu Linux 전용이며 다른 OS에서는 기동을 거부한다 (env.sh 가드).
 Docker Compose 형태(전부 컨테이너)는 별도 트랙 — 프로젝트 루트의 `docker-compose.yml` 사용.
 
 ## 주요 환경변수 (env.sh 기본값)

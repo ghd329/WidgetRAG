@@ -9,7 +9,13 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-OS="$(uname -s)"   # Darwin(macOS) | Linux(Ubuntu)
+
+# 실증 산출물 — Ubuntu Linux GPU VM 전용 (Track A: 전 구성요소 네이티브, Docker 없음).
+# macOS 등 로컬 우회 경로는 두지 않는다 — 로컬 검증이 필요하면 Docker Compose(B) 트랙을 사용.
+if [ "$(uname -s)" != "Linux" ]; then
+  printf '\033[1;31m[widgetrag][FAIL]\033[0m 이 스크립트는 실증 환경(Ubuntu Linux) 전용입니다 — 로컬 검증은 Docker Compose 트랙을 사용하세요\n' >&2
+  exit 1
+fi
 
 # --- 포트 ---
 PORT_FRONTEND="${PORT_FRONTEND:-5500}"    # api.js 로컬 감지/CORS 허용 목록과 일치해야 함 (5500/5501/3000)
@@ -18,21 +24,9 @@ PORT_AI="${PORT_AI:-8000}"
 PORT_OLLAMA="${PORT_OLLAMA:-11434}"
 PORT_OPENSEARCH="${PORT_OPENSEARCH:-9200}"
 
-# --- 인프라 실행 모드 ---
-#   native   : OpenSearch를 호스트에 직접 설치·기동 (Track A 순수 네이티브 — Linux 기본)
-#   container: Docker 컨테이너 (macOS 로컬 검증용 기본 — 맥은 네이티브 OpenSearch가 비현실적)
+# --- OpenSearch (apt 설치, 버전 고정 — 이관 시 소스·타겟 버전 일치 필수) ---
 #   ※ 관계형 DB는 SQLite 임베디드(백엔드 프로세스 내장)라 인프라 기동 대상이 아님
-if [ -z "${INFRA_MODE:-}" ]; then
-  case "$OS" in
-    Linux) INFRA_MODE=native ;;
-    *)     INFRA_MODE=container ;;
-  esac
-fi
-
-# --- 인프라 (컨테이너 모드용) ---
-OS_CONTAINER="widgetrag-opensearch"
-OS_IMAGE="opensearchproject/opensearch:2.18.0"
-OS_NATIVE_VERSION="2.18.0"   # native 모드 apt 설치 버전 (이미지 태그와 일치 유지)
+OPENSEARCH_VERSION="2.18.0"
 
 # --- LLM 모델 ---
 # 기본 Gemma 3 4B (약 3.3GB) — Gemma 이용약관은 산출물 오픈소스 리스트(OLA)에 표기.
@@ -90,13 +84,9 @@ warn() { printf '\033[1;33m[widgetrag][WARN]\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31m[widgetrag][FAIL]\033[0m %s\n' "$*" >&2; exit 1; }
 
 port_listening() {  # $1=port
-  # Linux: ss는 타 유저 소유 소켓도 보임 (lsof는 일반 유저 권한으로 opensearch/ollama 등
+  # ss는 타 유저 소유 소켓도 보임 (lsof는 일반 유저 권한으로 opensearch/ollama 등
   # 시스템 서비스의 소켓을 못 봐서 "미기동" 오탐 — 2026-09-21 EC2에서 실제 발생)
-  if command -v ss >/dev/null 2>&1; then
-    ss -ltn 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]$1\$"
-  else
-    lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1   # macOS
-  fi
+  ss -ltn 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]$1\$"
 }
 
 wait_for_http() {  # $1=url $2=이름 $3=타임아웃(초)
@@ -112,16 +102,8 @@ wait_for_http() {  # $1=url $2=이름 $3=타임아웃(초)
   printf ' OK\n'
 }
 
-resolve_java() {  # JAVA_HOME 확보 (macOS는 brew openjdk@17, Linux는 PATH의 java 실경로 역산)
+resolve_java() {  # JAVA_HOME 확보 (PATH의 java 실경로 역산)
   if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then return 0; fi
-  if [ "$OS" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
-    local p; p="$(brew --prefix openjdk@17 2>/dev/null || true)"
-    if [ -n "$p" ] && [ -d "$p/libexec/openjdk.jdk/Contents/Home" ]; then
-      export JAVA_HOME="$p/libexec/openjdk.jdk/Contents/Home"
-      export PATH="$JAVA_HOME/bin:$PATH"
-      return 0
-    fi
-  fi
   if command -v java >/dev/null 2>&1; then
     # /usr/bin/java(심링크) → 실제 JDK 경로로 역산해 JAVA_HOME 설정
     # (설정 없이 두면 기동 명령의 "$JAVA_HOME/bin/java"가 unbound variable — 2026-09-21 EC2에서 실제 발생)
