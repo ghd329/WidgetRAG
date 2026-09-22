@@ -7,7 +7,8 @@ spring:
     # SQLite 임베디드 DB — 별도 DB 컨테이너 불필요.
     # DB 파일은 업로드 볼륨(/data/widgetrag)에 함께 저장되어, 볼륨만 이관하면 데이터도 함께 이동합니다.
     # journal_mode=WAL: 읽기/쓰기 동시성 개선, busy_timeout: 쓰기 잠금 대기(ms)
-    url: jdbc:sqlite:${DB_PATH:/data/widgetrag/widgetrag.db}?journal_mode=WAL&busy_timeout=5000
+    # foreign_keys=true: SQLite는 커넥션마다 켜야 FK가 강제됨 (PostgreSQL과의 등가 조건)
+    url: jdbc:sqlite:${DB_PATH:/data/widgetrag/widgetrag.db}?journal_mode=WAL&busy_timeout=5000&foreign_keys=true
     driver-class-name: org.sqlite.JDBC
 
 server:

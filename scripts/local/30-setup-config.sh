@@ -21,7 +21,8 @@ else
 spring:
   datasource:
     # SQLite 임베디드 DB — 별도 서버 불필요. 파일이 없으면 자동 생성된다.
-    url: jdbc:sqlite:$SQLITE_DB_FILE?journal_mode=WAL&busy_timeout=5000
+    # foreign_keys=true: SQLite는 커넥션마다 켜야 FK가 강제됨 (PostgreSQL과의 등가 조건)
+    url: jdbc:sqlite:$SQLITE_DB_FILE?journal_mode=WAL&busy_timeout=5000&foreign_keys=true
     driver-class-name: org.sqlite.JDBC
 
 widgetrag:
