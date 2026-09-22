@@ -48,7 +48,9 @@ else
     -e DISABLE_SECURITY_PLUGIN=true \
     -e DISABLE_INSTALL_DEMO_CONFIG=true \
     -e "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g" \
+    -e "path.repo=/usr/share/opensearch/snapshots" \
     "$OS_IMAGE" >/dev/null
+  # path.repo: 색인 스냅샷 이관(62/63-*-index.sh)의 리포지토리 경로 — 기동 시점에만 설정 가능
 fi
 
 # ---------- 2. 헬스 대기 ----------
