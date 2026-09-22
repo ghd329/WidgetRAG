@@ -18,8 +18,11 @@ cd scripts/local
 
 ```bash
 ./stop.sh                              # 전체 종료 (역순, 데이터 유지)
-./50-verify.sh                         # 상태 점검만
-CLIENT_CODE=shop_xxxx ./50-verify.sh   # RAG 챗봇 스모크 테스트까지
+./50-verify.sh                         # 상태 점검 + SQLite 기능 등가성 (FK·WAL 동시 쓰기·트리거)
+CLIENT_CODE=shop_xxxx ./50-verify.sh   # RAG 챗봇 스모크 테스트 + 타임존 검증까지
+RUNS=5 CLIENT_CODE=... ./50-verify.sh  # 반복 검증 — N회 연속 자동판정, verify-history.tsv 누적
+FORM=aws-shell RUNS=5 ... ./50-verify.sh  # 결과표에 환경 이름 태깅 — CSP 간·형태 간 비교용
+                                          # (미지정 시 shell-$INFRA_MODE 자동)
 ```
 
 ## 서비스별 표준 커맨드 (래퍼가 내부에서 수행하는 순정 절차)
@@ -46,10 +49,13 @@ CLIENT_CODE=shop_xxxx ./50-verify.sh   # RAG 챗봇 스모크 테스트까지
 ./20-start-infra.sh       # [Phase B] OpenSearch(컨테이너) + Ollama + 모델 확보
 ./30-setup-config.sh      # [Phase C] application-local.yaml 생성 + 저장 디렉토리
 ./40-start-apps.sh        # [Phase D~F] AI 서버(venv) → 백엔드(java -jar) → 프론트 기동
-./50-verify.sh            # 6개 구성요소 + 모델 헬스 체크
+./50-verify.sh            # 6개 구성요소 + 모델 헬스 체크 + SQLite 기능 등가성 (RUNS=N 반복 검증)
 ./60-export-data.sh       # [이관] 데이터 내보내기 — WAL 체크포인트 + SHA-256 매니페스트 + (선택) 오브젝트 스토리지 업로드
 ./61-import-data.sh       # [이관] 데이터 가져오기 — 복원 + 용량·개수·해시 정합성 검증
+./62-export-index.sh      # [이관] 색인 내보내기 — OpenSearch 스냅샷 (무중지·증분, 방법③)
+./63-import-index.sh      # [이관] 색인 가져오기 — 스냅샷 복원 + 인덱스별 문서 수 대조
 ./90-stop-all.sh          # 전체 종료 (= stop.sh)
+./91-wipe-data.sh --yes   # 완전 삭제 — "완전 삭제 후 복구" 리허설용 (이관 패키지 자족성 증명)
 ```
 
 - 모든 스크립트는 **멱등** — 여러 번 실행해도 안전하고, 이미 떠 있는 것은 건너뛴다.
