@@ -1,0 +1,25 @@
+# ===========================================================
+# 레지스트리 이미지 기반 기동용 오버라이드 (요구사항 3 — pull 검증)
+#
+#   기본 docker-compose.yml은 build: 지시자로 소스에서 빌드하지만,
+#   이 파일을 겹치면 레지스트리의 이미지를 pull 받아 기동한다.
+#   마이그레이션 시나리오에서 목표 환경에 전달되는 Compose 정의의 원형.
+#
+# 사용법:
+#   .env 에 DOCKERHUB_USER=<Docker Hub 아이디> 추가 후
+#   docker compose -f docker-compose.yml -f docker-compose.images.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --no-build
+#
+# 태그 규칙: 단일 프라이빗 리포(widgetrag)에 서비스별 태그
+#   (무료 플랜의 프라이빗 리포 개수 제한 회피)
+# Harbor 전환 시: DOCKERHUB_USER 대신 <harbor주소/프로젝트> 로 치환
+# ===========================================================
+services:
+  backend:
+    image: ${DOCKERHUB_USER:?DOCKERHUB_USER를 .env에 설정하세요}/widgetrag:backend-${IMAGE_TAG:-v0.1.0}
+  ai-server:
+    image: ${DOCKERHUB_USER:?DOCKERHUB_USER를 .env에 설정하세요}/widgetrag:ai-server-${IMAGE_TAG:-v0.1.0}
+  frontend:
+    image: ${DOCKERHUB_USER:?DOCKERHUB_USER를 .env에 설정하세요}/widgetrag:frontend-${IMAGE_TAG:-v0.1.0}
+  llm:
+    image: ${DOCKERHUB_USER:?DOCKERHUB_USER를 .env에 설정하세요}/widgetrag:llm-${IMAGE_TAG:-v0.1.0}
