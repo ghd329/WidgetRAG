@@ -8,7 +8,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-Embedding_%26_LLM-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![OpenSearch](https://img.shields.io/badge/OpenSearch-k--NN_Vector_Search-005EB8?style=flat-square&logo=opensearch&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-Embedded_Database-003B57?style=flat-square&logo=sqlite&logoColor=white)
-![Ollama](https://img.shields.io/badge/Ollama-EXAONE_3.5-000000?style=flat-square)
+![Ollama](https://img.shields.io/badge/Ollama-Gemma_3_4B-000000?style=flat-square)
 
 ---
 
@@ -24,7 +24,7 @@ WidgetRAG는 온라인 쇼핑몰 운영사가 **`<script>` 태그 한 줄**만 �
 | 개발 유형 | 멀티테넌트 RAG 챗봇 SaaS (임베드 위젯 + 관리자 콘솔 + AI 서버) |
 | 핵심 기능 | 원라인 위젯 임베드, CSV 상품 데이터 업로드·증분 적재, 벡터 검색 기반 RAG 답변, 회사/직원 승인 워크플로우 |
 | 데모 대상 | 다이소몰, 66girls(패션몰) — 실제 사이트를 크롤링해 만든 클론 데모 샵 |
-| 주요 기술 | Spring Boot 4, FastAPI, OpenSearch k-NN, BAAI/bge-m3, EXAONE 3.5 / Gemma 3 |
+| 주요 기술 | Spring Boot 4, FastAPI, OpenSearch k-NN, BAAI/bge-m3, Gemma 3 (기본) / EXAONE 3.5 |
 
 ---
 
@@ -52,7 +52,7 @@ WidgetRAG는 온라인 쇼핑몰 운영사가 **`<script>` 태그 한 줄**만 �
     └──HTTP──▶ [AI Server] :8000  (FastAPI, ai-server/main_*.py)
                  ├─ /embed, /embed/batch  — BAAI/bge-m3 (SentenceTransformer, CUDA)
                  └─ /generate             — LLM 라우팅 (택1)
-                       ├─ Ollama + EXAONE 3.5 7.8B  (외부 프로세스 호출)
+                       ├─ Ollama + Gemma 3 4B (기본)  (외부 프로세스 호출)
                        └─ Gemma 3 4B-IT              (transformers, in-process, bfloat16)
 
 [데이터 수집]
@@ -79,7 +79,7 @@ WidgetRAG는 온라인 쇼핑몰 운영사가 **`<script>` 태그 한 줄**만 �
 |------|------|
 | 프레임워크 | FastAPI + Uvicorn |
 | 임베딩 모델 | `BAAI/bge-m3` (SentenceTransformer, 1024차원, CUDA) |
-| LLM (옵션 A) | **EXAONE 3.5 7.8B** — Ollama 로컬 서버 경유 호출 |
+| LLM (옵션 A) | **Gemma 3 4B (기본)** — Ollama 로컬 서버 경유 호출. `OLLAMA_MODEL`로 교체 가능 (EXAONE은 연구용 라이선스 제약으로 실증 산출물 기준 비권장) |
 | LLM (옵션 B) | **Gemma 3 4B-IT** — `transformers`로 in-process 로드 (bfloat16, GPU 오토 배치) |
 | 프롬프트 설계 | "검색된 상품 목록 안에서만 답변" 제약 프롬프트 — 할루시네이션 가드레일 |
 
@@ -248,7 +248,7 @@ WidgetRAG/
 ### 1. 사전 준비
 - OpenSearch(로컬 9200) 실행 — 관계형 DB는 SQLite 임베디드라 별도 실행 불필요
 - `backend/src/main/resources/application-local.yaml.example`을 복사해 SQLite 파일 경로 등 입력
-- AI 서버용 GPU 환경 (EXAONE 사용 시 Ollama 실행 + `exaone3.5:7.8b` pull, Gemma 사용 시 HuggingFace 모델 다운로드)
+- AI 서버용 GPU 환경 (기본: Ollama 실행 + `gemma3:4b` pull. transformers 직접 로드 방식은 HuggingFace 모델 다운로드)
 
 ### 2. AI 서버 실행
 

@@ -23,7 +23,8 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip(
 OLLAMA_URL = f"{OLLAMA_BASE_URL}/api/generate"
 
 # Ollama 레지스트리 모델명. llm 컨테이너가 pull하는 모델과 일치해야 합니다.
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "exaone3.5:7.8b")
+# 기본 Gemma 3 4B — 라이선스(OLA 표기) 및 실증 내부안 기준. 교체는 OLLAMA_MODEL로.
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:4b")
 
 
 class EmbedRequest(BaseModel):

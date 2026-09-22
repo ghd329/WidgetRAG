@@ -1,13 +1,13 @@
 #!/bin/sh
-# Ollama를 띄우고 EXAONE 3.5 모델을 확보합니다.
+# Ollama를 띄우고 LLM 모델(기본 Gemma 3 4B)을 확보합니다.
 #
 # 모델은 이미지가 아니라 /root/.ollama 볼륨에 저장됩니다.
 #  - 이미지가 가벼워지고, 재배포해도 다시 받지 않습니다.
-#  - 최초 1회만 약 5GB를 내려받습니다(수 분 소요).
+#  - 최초 1회만 약 3.3GB를 내려받습니다(수 분 소요).
 # ollama pull은 이미 받은 모델이면 즉시 통과하므로 매 기동마다 호출해도 안전합니다.
 set -e
 
-MODEL_NAME="${OLLAMA_MODEL:-exaone3.5:7.8b}"
+MODEL_NAME="${OLLAMA_MODEL:-gemma3:4b}"
 
 ollama serve &
 SERVE_PID=$!

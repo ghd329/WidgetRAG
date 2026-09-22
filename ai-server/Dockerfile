@@ -1,4 +1,4 @@
-# WidgetRag - ai-server (FastAPI / bge-m3 임베딩 / EXAONE는 Ollama HTTP로 호출)
+# WidgetRag - ai-server (FastAPI / bge-m3 임베딩 / LLM은 Ollama HTTP로 호출 — 기본 Gemma 3 4B)
 # main_exaone.py + requirements_exaone.txt 기준 (main_gemma.py는 미사용)
 #
 # GPU 필요: requirements_exaone.txt의 torch는 PyPI 기본 휠(CUDA 빌드)이라
@@ -28,7 +28,7 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 COPY main_exaone.py .
 
 ENV OLLAMA_BASE_URL=http://llm:11434 \
-    OLLAMA_MODEL=exaone3.5:7.8b
+    OLLAMA_MODEL=gemma3:4b
 
 EXPOSE 8000
 

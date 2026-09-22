@@ -10,7 +10,7 @@
 # 사전 준비
 #   1) .env 파일 생성 (.env.example 복사)
 #   2) GPU 호스트에 nvidia-container-toolkit 설치
-# LLM 가중치는 최초 기동 시 llm 컨테이너가 자동으로 pull합니다 (약 5GB, 수 분).
+# LLM 가중치는 최초 기동 시 llm 컨테이너가 자동으로 pull합니다 (약 3.3GB, 수 분).
 #
 # data-pipeline은 일회성 크롤링 스크립트라 배포 대상이 아닙니다 (의도적으로 제외).
 
@@ -41,10 +41,10 @@ services:
   llm:
     build: ./llm
     volumes:
-      # 모델 가중치(약 5GB)가 저장됩니다. 최초 기동 시에만 다운로드합니다.
+      # 모델 가중치(기본 gemma3:4b 약 3.3GB)가 저장됩니다. 최초 기동 시에만 다운로드합니다.
       - ollama-data:/root/.ollama
     environment:
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-exaone3.5:7.8b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:4b}
     deploy:
       resources:
         reservations:
@@ -58,7 +58,7 @@ services:
     build: ./ai-server
     environment:
       OLLAMA_BASE_URL: http://llm:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-exaone3.5:7.8b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:4b}
       EMBEDDING_DEVICE: ${EMBEDDING_DEVICE:-cuda}
     depends_on:
       - llm
