@@ -37,7 +37,7 @@ resolve_java
 JAR="$(ls "$BACKEND_DIR"/target/backend-*.jar 2>/dev/null | head -1 || true)"
 if [ -z "$JAR" ] || [ "$REBUILD" = "--rebuild" ]; then
   log "백엔드 빌드 (./mvnw package -DskipTests) — 최초 수 분 소요"
-  ( cd "$BACKEND_DIR" && ./mvnw -q package -DskipTests )
+  ( cd "$BACKEND_DIR" && chmod +x mvnw && ./mvnw -q package -DskipTests )
   JAR="$(ls "$BACKEND_DIR"/target/backend-*.jar | head -1)"
 fi
 
