@@ -26,6 +26,13 @@ OLLAMA_URL = f"{OLLAMA_BASE_URL}/api/generate"
 # 기본 Gemma 3 4B — 라이선스(OLA 표기) 및 실증 내부안 기준. 교체는 OLLAMA_MODEL로.
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:4b")
 
+# 생성 파라미터 — 마이그레이션 동등성 검증은 "결정적 설정(temperature 0 + seed 고정)에서
+# 동일 입력 → 결과 일치 비교"를 요구하므로, 환경변수와 요청 단위 양쪽에서 제어 가능해야 한다.
+#   검증 모드 예: LLM_TEMPERATURE=0 LLM_SEED=42 (또는 요청 본문에 temperature/seed 지정)
+LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.7"))
+LLM_SEED = int(os.getenv("LLM_SEED")) if os.getenv("LLM_SEED") else None
+LLM_NUM_PREDICT = int(os.getenv("LLM_NUM_PREDICT", "200"))
+
 
 class EmbedRequest(BaseModel):
     texts: List[str]
@@ -46,6 +53,9 @@ class GenerateRequest(BaseModel):
     clientCode: str
     question: str
     products: List[ProductContext]
+    # 동등성 검증용 요청 단위 오버라이드 — 미지정 시 서버 기본값(환경변수) 사용
+    temperature: Optional[float] = None
+    seed: Optional[int] = None
 
 
 class GenerateResponse(BaseModel):
@@ -69,7 +79,9 @@ def health_check():
         "status": "ok",
         "embedding_device": str(embedding_model.device),
         "llm_provider": "ollama",
-        "llm_model": OLLAMA_MODEL
+        "llm_model": OLLAMA_MODEL,
+        "llm_temperature": LLM_TEMPERATURE,
+        "llm_seed": LLM_SEED
     }
 
 
@@ -102,16 +114,23 @@ def generate(request: GenerateRequest):
 [답변 형식]
 위 상품 중 질문과 가장 관련 있는 상품을 1~2개 골라 상품명과 가격을 포함해 자연스러운 한국어 문장으로 답변하세요."""
 
+    temperature = request.temperature if request.temperature is not None else LLM_TEMPERATURE
+    seed = request.seed if request.seed is not None else LLM_SEED
+
+    options = {
+        "temperature": temperature,
+        "num_predict": LLM_NUM_PREDICT
+    }
+    if seed is not None:
+        options["seed"] = seed
+
     response = requests.post(
         OLLAMA_URL,
         json={
             "model": OLLAMA_MODEL,
             "prompt": prompt,
             "stream": False,
-            "options": {
-                "temperature": 0.7,
-                "num_predict": 200
-            }
+            "options": options
         },
         timeout=180
     )
