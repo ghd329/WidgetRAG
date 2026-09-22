@@ -52,3 +52,9 @@ ai-server/__pycache__/
 ai-server/*.pyc
 
 INTERVIEW_PREP.md
+# ===== shell 설치형 스크립트 런타임 산출물 =====
+scripts/local/.admin-password
+scripts/local/logs/
+scripts/local/pids/
+scripts/local/exports/
+scripts/local/imports/
