@@ -2,9 +2,9 @@
 # ===========================================================
 # [부트스트랩] 신규 VM 진입점 — 코드 확보(git) + NVIDIA 드라이버 + Shell 설치형(A) 진입
 #
-#   ※ Docker Compose(B) 트랙은 이 저장소의 스크립트를 쓰지 않는다 — 애플리케이션이
-#     레지스트리 이미지로 말려 있어 타겟에 소스·git이 불필요하므로, 저장소 외부에서
-#     관리하는 독립 배포 스크립트(widgetrag-compose-deploy.sh)가 compose 정의만 받아 기동한다.
+#   ※ Docker Compose(B) 트랙은 이 진입점을 쓰지 않는다 — 애플리케이션이 레지스트리
+#     이미지로 말려 있어 타겟에 소스·git이 불필요하므로, scripts/compose/deploy.sh 를
+#     raw로 받아(clone 없이) 실행한다. 해당 파일 헤더의 사용법 참조.
 #
 #   최초 1회 (스크립트가 VM에 없는 상태 — postCommands 페이로드와 동일):
 #
@@ -49,7 +49,7 @@ RESUME_UNIT="widgetrag-bootstrap-resume"
 log() { printf '\033[1;32m[bootstrap]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[bootstrap][FAIL]\033[0m %s\n' "$*" >&2; exit 1; }
 
-case "$MODE" in ""|--install|--start) : ;; *) die "알 수 없는 옵션: $MODE (--install | --start) — Docker Compose(B)는 독립 배포 스크립트(widgetrag-compose-deploy.sh) 사용" ;; esac
+case "$MODE" in ""|--install|--start) : ;; *) die "알 수 없는 옵션: $MODE (--install | --start) — Docker Compose(B)는 scripts/compose/deploy.sh 를 raw로 받아 사용" ;; esac
 
 # ---------- 1. 코드 확보 ----------
 if ! command -v git >/dev/null 2>&1; then

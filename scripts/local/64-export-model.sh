@@ -16,7 +16,7 @@
 #     ./64-export-model.sh [출력디렉토리]                      # 기본: ./exports
 #     OBJECT_STORAGE_URI=s3://bucket/widgetrag ./64-export-model.sh
 #
-#   ※ Docker Compose(B)의 모델은 ollama-data 볼륨 — widgetrag-volume-migrate.sh 사용.
+#   ※ Docker Compose(B)의 모델은 ollama-data 볼륨 — scripts/compose/volume-migrate.sh 사용.
 #   ※ 서비스 중지 불필요 (모델 파일은 pull 완료 후 정적) — 단, 내보내는 동안
 #     ollama pull을 실행하지 말 것 (아카이브 정합성).
 # ===========================================================
