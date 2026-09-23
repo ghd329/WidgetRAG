@@ -58,6 +58,8 @@ FORM=aws-shell RUNS=5 ... ./50-verify.sh  # 결과표에 환경 이름 태깅 �
 ./61-import-data.sh       # [이관] 데이터 가져오기 — 복원 + 용량·개수·해시 정합성 검증
 ./62-export-index.sh      # [이관] 색인 내보내기 — OpenSearch 스냅샷 (무중지·증분, 방법③)
 ./63-import-index.sh      # [이관] 색인 가져오기 — 스냅샷 복원 + 인덱스별 문서 수 대조
+./64-export-model.sh      # [이관·선택] LLM 모델 내보내기 — 재다운로드 대신 이관할 때 (vLLM 실증 경로 원형)
+./65-import-model.sh      # [이관·선택] LLM 모델 가져오기 — 복원 + ollama 인식(경로 재연결) 자동 판정
 ./90-stop-all.sh          # 전체 종료 (= stop.sh)
 ./91-wipe-data.sh --yes   # 완전 삭제 — "완전 삭제 후 복구" 리허설용 (이관 패키지 자족성 증명)
 ```
