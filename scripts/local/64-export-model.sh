@@ -7,7 +7,10 @@
 #     - 계약 원형 검증: 모델을 오브젝트 스토리지 경유로 이전하고 정합성 확인
 #       (본선 vLLM 실증은 수십 GB 모델이 진짜 이관 대상 — 여기서 경로를 미리 검증)
 #
-#   산출물 (60/62와 같은 형식):
+#   이관 패키지(scripts/package.sh)는 LexAI 와 같은 기준으로 모델을 담지 않는다 — 이 스크립트는
+#   모델까지 옮겨야 할 때만 쓰는 별도 경로다.
+#
+#   산출물:
 #     widgetrag-model-<ts>.tgz         모델 디렉토리 아카이브
 #     widgetrag-model-<ts>.tgz.sha256  아카이브 해시
 #     widgetrag-model-<ts>.modellist   ollama list 스냅샷 — 타겟(65)이 복원 후 대조
@@ -16,7 +19,7 @@
 #     ./64-export-model.sh [출력디렉토리]                      # 기본: ./exports
 #     OBJECT_STORAGE_URI=s3://bucket/widgetrag ./64-export-model.sh
 #
-#   ※ Docker Compose(B)의 모델은 ollama-data 볼륨 — scripts/compose/volume-migrate.sh 사용.
+#   ※ Docker Compose(B)는 모델을 옮기지 않는다 — 타겟의 llm 컨테이너가 첫 기동 때 다시 받는다 (ollama-data 볼륨).
 #   ※ 서비스 중지 불필요 (모델 파일은 pull 완료 후 정적) — 단, 내보내는 동안
 #     ollama pull을 실행하지 말 것 (아카이브 정합성).
 # ===========================================================
