@@ -58,3 +58,7 @@ scripts/local/logs/
 scripts/local/pids/
 scripts/local/exports/
 scripts/local/imports/
+
+# ===== 이관 패키지 — 색인 스냅샷 저장소 (docker-compose.yml 이 /mnt/snapshots 로 마운트) =====
+snapshots/*
+!snapshots/.gitkeep

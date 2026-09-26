@@ -1,11 +1,23 @@
 # WidgetRag 배포 구성
 #
-#   frontend(nginx:80) ──/api──> backend(8080) ──> SQLite(/data/widgetrag/widgetrag.db, 임베디드)
-#                                              ──> opensearch(9200)
-#                                              ──> ai-server(8000) ──> llm(ollama:11434)
+#   [브라우저] → frontend(nginx:80) ─┬→ 정적 화면 (콘솔 · 데모샵)
+#                                    └→ /api · /widget.js → backend(8080) ──> SQLite(/data/widgetrag/widgetrag.db, 임베디드)
+#                                                                        ──> opensearch(9200)
+#                                                                        ──> ai-server(8000) ──> llm(ollama:11434)
+#
+# 외부에 열리는 포트는 frontend 의 80 뿐입니다. 보안 그룹은 22 만 열고 SSH 터널로 접속하세요.
 #
 # DB는 SQLite 임베디드로 동작합니다 — 별도 DB 컨테이너가 없으며,
-# DB 파일은 upload-data 볼륨에 저장되어 볼륨 이관 시 데이터도 함께 이동합니다.
+# DB 파일은 upload-data 볼륨에 업로드 파일과 함께 저장됩니다.
+#
+# ★ CSP 간 이관 검증에 맞춰 구성을 줄였습니다 (LexAI 와 같은 방향).
+#   - PostgreSQL → SQLite 파일 (관리형 DB 를 함께 옮길 필요가 없어집니다)
+#   - caddy      → 제거 (frontend 의 nginx 가 /api 를 프록시합니다 — frontend/nginx.conf)
+#     HTTPS 가 필요해지면 CSP 의 로드밸런서에서 종료하는 쪽을 권합니다.
+#     Caddyfile 은 되살릴 때를 위해 저장소에 남겨 두었습니다.
+#
+# 이관 패키지(색인 스냅샷 + DB + 업로드 파일)는 scripts/package.sh 가 만들고 복원합니다.
+# 색인 스냅샷은 ./snapshots 를 opensearch 의 path.repo(/mnt/snapshots)로 마운트해 주고받습니다.
 #
 # 사전 준비
 #   1) .env 파일 생성 (.env.example 복사)
@@ -25,11 +37,16 @@ services:
       # 외부에 포트를 열지 마세요(아래 ports 미노출 유지).
       - DISABLE_SECURITY_PLUGIN=true
       - DISABLE_INSTALL_DEMO_CONFIG=true
+      # 스냅샷 저장소 경로 — 이관 패키지의 색인을 여기로 넣고 뺍니다 (scripts/package.sh).
+      - path.repo=/mnt/snapshots
     ulimits:
       memlock: { soft: -1, hard: -1 }
       nofile: { soft: 65536, hard: 65536 }
     volumes:
       - opensearch-data:/usr/share/opensearch/data
+      # 컨테이너의 opensearch 사용자(uid 1000)가 쓸 수 있어야 합니다 — deploy.sh 가 소유권을 맞춥니다.
+      # 디렉터리가 없으면 도커가 root 소유로 만들어 스냅샷 저장소 등록이 거부됩니다.
+      - ./snapshots:/mnt/snapshots
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
       interval: 15s
@@ -60,6 +77,11 @@ services:
       OLLAMA_BASE_URL: http://llm:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:4b}
       EMBEDDING_DEVICE: ${EMBEDDING_DEVICE:-cuda}
+      # 이관 전후 동등성 비교용 결정적 설정 (예: LLM_TEMPERATURE=0 LLM_SEED=42).
+      # 평소 운영은 비워 둡니다 — LLM_SEED 가 비면 미지정(비결정적)입니다.
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
+      LLM_SEED: ${LLM_SEED:-}
+      TZ: ${TZ:-Asia/Seoul}
     depends_on:
       - llm
     deploy:
@@ -88,6 +110,9 @@ services:
       # HTTPS 종단이 없으면 secure 쿠키가 전달되지 않아 로그인 세션이 유지되지 않습니다.
       SESSION_SECURE: ${SESSION_SECURE:-false}
       SESSION_SAME_SITE: ${SESSION_SAME_SITE:-lax}
+      # ★ 엔티티 시각(LocalDateTime.now)은 JVM 기본 타임존을 따르고, 컨테이너 기본은 UTC 입니다.
+      #   Shell 설치형(호스트 타임존)과 값이 갈리지 않도록 두 형태 모두 명시합니다.
+      TZ: ${TZ:-Asia/Seoul}
     volumes:
       # 업로드 파일 + SQLite DB 파일(widgetrag.db)이 함께 저장됩니다.
       - upload-data:/data/widgetrag
@@ -96,32 +121,17 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # 외부 진입점. 정적 화면을 서빙하고 /api 와 /widget.js 를 backend 로 프록시합니다
+  # (frontend/nginx.conf). 화면과 API 가 같은 오리진이 되어 caddy 없이도 동작합니다.
   frontend:
     build: ./frontend
-    depends_on:
-      - backend
-    restart: unless-stopped
-
-  # HTTPS 종단. Let's Encrypt 인증서를 도메인 기준으로 자동 발급/갱신합니다.
-  # frontend는 더 이상 80을 직접 노출하지 않고, caddy를 통해서만 접근합니다.
-  caddy:
-    image: caddy:2-alpine
-    environment:
-      DOMAIN: ${DOMAIN:-localhost}
     ports:
       - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy-data:/data
-      - caddy-config:/config
     depends_on:
-      - frontend
+      - backend
     restart: unless-stopped
 
 volumes:
   opensearch-data:
   ollama-data:
   upload-data:
-  caddy-data:
-  caddy-config:

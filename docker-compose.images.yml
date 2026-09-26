@@ -9,6 +9,10 @@
 #   docker compose -f docker-compose.yml -f docker-compose.images.yml pull
 #   docker compose -f docker-compose.yml -f docker-compose.images.yml up -d --no-build
 #
+#   ★ build: !reset null 은 Compose v2.24+ 문법이다. 본체의 build: 를 지워서
+#     소스가 없는 타겟에서 빌드를 시도하는 경로 자체를 없앤다 (LexAI 와 같은 방식 —
+#     scripts/compose/deploy.sh 가 버전을 먼저 확인한다).
+#
 # 레지스트리 전환 (실증 CSP 조합 AWS↔GCP↔NCP 대응):
 #   REGISTRY_PREFIX 만 바꾸면 어느 레지스트리로든 간다 — .env 또는 명령 앞에 지정.
 #     Docker Hub : REGISTRY_PREFIX=yjp8842                                    (기본값)
@@ -23,13 +27,19 @@
 #     v0.1.0 = PostgreSQL·EXAONE 구성 (구버전 — 현재 compose와 비호환)
 #     v0.2.0 = SQLite·Gemma·비민감화 반영 (feat/20260922-change-sqlite)
 #     v0.3.0 = FK 강제(foreign_keys=true) 반영 (2026-09-23 push·pull 재기동 검증 완료)
+#   caddy 제거는 compose 정의만 바뀐 것이라 이미지는 v0.3.0 그대로 쓴다
+#   (frontend 이미지의 nginx 가 이미 /api 를 프록시한다).
 # ===========================================================
 services:
   backend:
     image: ${REGISTRY_PREFIX:-yjp8842}/widgetrag:backend-${IMAGE_TAG:-v0.3.0}
+    build: !reset null
   ai-server:
     image: ${REGISTRY_PREFIX:-yjp8842}/widgetrag:ai-server-${IMAGE_TAG:-v0.3.0}
+    build: !reset null
   frontend:
     image: ${REGISTRY_PREFIX:-yjp8842}/widgetrag:frontend-${IMAGE_TAG:-v0.3.0}
+    build: !reset null
   llm:
     image: ${REGISTRY_PREFIX:-yjp8842}/widgetrag:llm-${IMAGE_TAG:-v0.3.0}
+    build: !reset null
