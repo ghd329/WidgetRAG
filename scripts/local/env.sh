@@ -17,8 +17,15 @@ if [ "$(uname -s)" != "Linux" ]; then
   exit 1
 fi
 
+# 이관 도구(postCommands)는 대화형이 아니므로 apt 가 질문을 던지면 멈춘다.
+# (sudo 는 환경변수를 넘기지 않으므로 apt 호출은 apt_install 로 — sudo env 로 명시 전달)
+export DEBIAN_FRONTEND=noninteractive
+
 # --- 포트 ---
-PORT_FRONTEND="${PORT_FRONTEND:-5500}"    # api.js 로컬 감지/CORS 허용 목록과 일치해야 함 (5500/5501/3000)
+# 프론트는 nginx 로 띄워 /api 를 백엔드로 프록시한다 (Docker Compose 형태와 같은 frontend/nginx.conf).
+# 화면과 API 가 같은 오리진이 되어, 두 형태 모두 SSH 터널 하나(-L 8081:localhost:80)로 접속한다.
+# ※ 5500/5501/3000 은 쓰지 말 것 — api.js 가 이 포트를 "로컬 개발"로 보고 :8080 을 직접 부른다.
+PORT_FRONTEND="${PORT_FRONTEND:-80}"
 PORT_BACKEND="${PORT_BACKEND:-8080}"
 PORT_AI="${PORT_AI:-8000}"
 PORT_OLLAMA="${PORT_OLLAMA:-11434}"
@@ -51,6 +58,16 @@ if [ -z "${WIDGETRAG_ADMIN_PASSWORD:-}" ]; then
   fi
 fi
 
+# --- 콘솔 접속 오리진 · 위젯 공개 주소 (Docker Compose 형태의 .env 기본값과 같게) ---
+# 브라우저는 SSH 터널(localhost:8081)로 들어오므로 그 오리진을 CORS 에 등록한다.
+CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-http://localhost:8081,http://127.0.0.1:8081}"
+PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-http://localhost:8081}"
+
+# --- 타임존 ---
+# 엔티티 시각(LocalDateTime.now)은 JVM 기본 타임존 = 프로세스의 TZ 를 따른다. VM 이미지마다
+# 기본값이 달라(UTC/KST) 명시하지 않으면 이관 전후로 기록 시각이 9시간 갈린다 (LexAI 와 같은 기준).
+APP_TZ="${APP_TZ:-Asia/Seoul}"
+
 # --- LLM 생성 파라미터 ---
 # 동등성 검증(이관 전후 추론 결과 일치 비교)은 결정적 설정이 필요:
 #   LLM_TEMPERATURE=0 LLM_SEED=42 ./40-start-apps.sh
@@ -66,6 +83,9 @@ SYSTEMD_UNITS=(widgetrag-ai widgetrag-backend widgetrag-frontend)
 # --- 경로 ---
 STORAGE_DIR="${STORAGE_DIR:-$HOME/widgetrag-data}"   # CSV 업로드 파일 저장 경로
 SQLITE_DB_FILE="${SQLITE_DB_FILE:-$STORAGE_DIR/widgetrag.db}"   # SQLite DB 파일 (업로드 경로와 같은 곳에 두어 함께 이관)
+PACKAGE_DIR="${PACKAGE_DIR:-$HOME/widgetrag-package}"           # 받은 이관 패키지 (SNAPSHOT_URI → 35-restore-package.sh)
+PACKAGE_SH="$PROJECT_ROOT/scripts/package.sh"                    # 이관 패키지 도구 (두 형태 공용)
+FRONTEND_NGINX_CONF="/etc/widgetrag/frontend-nginx.conf"         # frontend/nginx.conf 에서 생성 (40-start-apps.sh)
 LOG_DIR="$SCRIPT_DIR/logs"
 PID_DIR="$SCRIPT_DIR/pids"
 AI_DIR="$PROJECT_ROOT/ai-server"
@@ -79,9 +99,20 @@ PYTHON_BIN="${PYTHON_BIN:-python3.12}"
 mkdir -p "$LOG_DIR" "$PID_DIR"
 
 # ---------- 공통 함수 ----------
-log()  { printf '\033[1;32m[widgetrag]\033[0m %s\n' "$*"; }
-warn() { printf '\033[1;33m[widgetrag][WARN]\033[0m %s\n' "$*"; }
-die()  { printf '\033[1;31m[widgetrag][FAIL]\033[0m %s\n' "$*" >&2; exit 1; }
+# 이관 도구로 실행되면 TTY 가 없고 출력이 로그로 수집된다 — 그때는 색상 제어문자를 쓰지 않는다.
+if [ -t 1 ]; then
+  log()  { printf '\033[1;32m[widgetrag]\033[0m %s\n' "$*"; }
+  warn() { printf '\033[1;33m[widgetrag][WARN]\033[0m %s\n' "$*"; }
+  die()  { printf '\033[1;31m[widgetrag][FAIL]\033[0m %s\n' "$*" >&2; exit 1; }
+else
+  log()  { printf '[widgetrag] %s\n' "$*"; }
+  warn() { printf '[widgetrag][WARN] %s\n' "$*"; }
+  die()  { printf '[widgetrag][FAIL] %s\n' "$*" >&2; exit 1; }
+fi
+
+apt_install() {  # apt_install <패키지...> — 비대화형 (sudo 가 DEBIAN_FRONTEND 를 지우므로 env 로 넘긴다)
+  sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -q "$@"
+}
 
 port_listening() {  # $1=port
   # ss는 타 유저 소유 소켓도 보임 (lsof는 일반 유저 권한으로 opensearch/ollama 등

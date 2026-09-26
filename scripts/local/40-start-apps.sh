@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ===========================================================
-# [Phase D+E+F] 앱 계층 기동 — AI 서버(venv) → 백엔드(java -jar) → 프론트엔드
+# [Phase D+E+F] 앱 계층 기동 — AI 서버(venv) → 백엔드(java -jar) → 프론트엔드(nginx)
 #
 #   기동 방식 (마이그레이션 식별 요건에 맞춤):
 #     systemd 유닛 3종(widgetrag-ai/backend/frontend) + EnvironmentFile
@@ -43,8 +43,6 @@ fi
 # =========================================================
 # systemd 유닛 기동 (이관 대상 환경의 표준 형태)
 # =========================================================
-PYTHON3_BIN="$(command -v python3)"
-
 # ---- 환경변수 파일: 이관 도구의 "환경변수 식별" 표준 앵커 ----
 log "환경변수 파일 생성: $WIDGETRAG_ENV_FILE (root:600 — 비밀값 포함)"
 sudo mkdir -p "$(dirname "$WIDGETRAG_ENV_FILE")"
@@ -56,6 +54,7 @@ ADMIN_PASSWORD=$WIDGETRAG_ADMIN_PASSWORD
 OLLAMA_BASE_URL=http://localhost:$PORT_OLLAMA
 OLLAMA_MODEL=$OLLAMA_MODEL
 LLM_TEMPERATURE=$LLM_TEMPERATURE
+TZ=$APP_TZ
 EOF
 # 빈 값을 쓰면 소비 측 파싱이 모호해지므로 지정된 경우에만 기록
 [ -n "$LLM_SEED" ] && echo "LLM_SEED=$LLM_SEED" | sudo tee -a "$WIDGETRAG_ENV_FILE" >/dev/null
@@ -101,15 +100,54 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
+# ---- 프론트: frontend/nginx.conf 를 그대로 쓰고, 도커 전용 부분만 호스트 값으로 바꾼다 ----
+# Docker Compose 형태와 같은 설정이라 화면·/api 프록시·업로드 타임아웃이 두 형태에서 같다.
+#   - resolver 127.0.0.11 (도커 내장 DNS) 제거 — 업스트림이 IP 라 필요 없다
+#   - http://backend:8080 → 127.0.0.1:$PORT_BACKEND · 웹 루트 → 저장소의 frontend/
+#   - 저장소의 nginx.conf · Dockerfile 이 웹 루트에 같이 있으므로 내보내지 않는다
+#     (컨테이너 이미지는 빌드 때 지운다 — frontend/Dockerfile)
+command -v nginx >/dev/null 2>&1 || die "nginx 없음 — ./10-install-tools.sh 먼저"
+if port_listening "$PORT_FRONTEND" && ! systemctl is-active --quiet widgetrag-frontend; then
+  die "포트 :$PORT_FRONTEND 를 다른 프로세스가 쓰고 있음 — 배포판 nginx(sudo systemctl disable --now nginx) 또는 Docker Compose 형태를 먼저 내리세요"
+fi
+log "프론트 nginx 설정 생성: $FRONTEND_NGINX_CONF (원본 frontend/nginx.conf)"
+{
+  cat <<EOF
+# scripts/local/40-start-apps.sh 가 frontend/nginx.conf 로부터 생성 — 직접 고치지 말 것
+user $USER;
+worker_processes auto;
+pid /run/widgetrag-frontend.pid;
+error_log stderr warn;
+
+events { worker_connections 1024; }
+
+http {
+  include /etc/nginx/mime.types;
+  default_type application/octet-stream;
+  sendfile on;
+  access_log off;
+
+EOF
+  sed -e '/^resolver /d' \
+      -e "s#http://backend:8080#http://127.0.0.1:$PORT_BACKEND#" \
+      -e "s#^\( *\)root /usr/share/nginx/html;#\1root $FRONTEND_DIR;\n\1location ~ ^/(nginx\\\\.conf|Dockerfile)\$ { return 404; }#" \
+      -e "s#^\( *\)listen 80;#\1listen $PORT_FRONTEND;#" \
+      "$FRONTEND_DIR/nginx.conf" | sed 's/^/  /'
+  echo "}"
+} | sudo tee "$FRONTEND_NGINX_CONF" >/dev/null
+sudo nginx -t -q -c "$FRONTEND_NGINX_CONF" || die "nginx 설정 검사 실패 — $FRONTEND_NGINX_CONF"
+
 sudo tee /etc/systemd/system/widgetrag-frontend.service >/dev/null <<EOF
 [Unit]
-Description=WidgetRAG Frontend (static, python http.server)
-After=network-online.target
+Description=WidgetRAG Frontend (nginx — 정적 화면 + /api 프록시)
+After=network-online.target widgetrag-backend.service
 
 [Service]
 Type=simple
-User=$USER
-ExecStart=$PYTHON3_BIN -m http.server $PORT_FRONTEND --directory $FRONTEND_DIR
+# master 는 root(80 포트 바인딩), worker 는 설정의 user($USER)로 돈다
+ExecStartPre=/usr/sbin/nginx -t -q -c $FRONTEND_NGINX_CONF
+ExecStart=/usr/sbin/nginx -c $FRONTEND_NGINX_CONF -g 'daemon off;'
+ExecReload=/usr/sbin/nginx -c $FRONTEND_NGINX_CONF -s reload
 Restart=on-failure
 RestartSec=5
 
@@ -125,14 +163,16 @@ done
 
 wait_for_http "http://localhost:$PORT_AI/docs"                "AI 서버"    600   # 최초 bge-m3 2.3GB 다운로드
 wait_for_http "http://localhost:$PORT_BACKEND/swagger-ui.html" "백엔드"     180
-wait_for_http "http://localhost:$PORT_FRONTEND/"               "프론트엔드" 30
+wait_for_http "http://localhost:$PORT_FRONTEND/login/company-login.html" "프론트엔드" 30
+wait_for_http "http://localhost:$PORT_FRONTEND/widget.js"      "프론트 /api 프록시" 30
 
 echo
 log "앱 계층 기동 완료 (systemd 유닛)"
 echo "  관리자 계정       : $WIDGETRAG_ADMIN_EMAIL (비밀번호: 환경변수 미지정 시 $ADMIN_PW_FILE 에 자동 생성됨)"
-echo "  콘솔(가입/로그인) : http://localhost:$PORT_FRONTEND/login/company-signup.html"
-echo "  데모샵(위젯)      : http://localhost:$PORT_FRONTEND/demo-shop/demo-living.html?client=<발급코드>"
-echo "  API 문서          : http://localhost:$PORT_BACKEND/swagger-ui.html"
+echo "  [로컬 PC] 터널    : ssh -N -L 8081:localhost:$PORT_FRONTEND ubuntu@<IP>   (Docker Compose 형태와 같은 터널)"
+echo "  콘솔(가입/로그인) : http://localhost:8081/login/company-signup.html"
+echo "  데모샵(위젯)      : http://localhost:8081/demo-shop/demo-living.html?client=<발급코드>"
+echo "  API 문서          : http://localhost:$PORT_BACKEND/swagger-ui.html  (VM 안에서 · 또는 -L 8080:localhost:8080)"
 echo "  서비스 상태       : systemctl status widgetrag-{ai,backend,frontend}"
 echo "  로그              : journalctl -u widgetrag-backend -f"
 echo
