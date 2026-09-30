@@ -5,6 +5,7 @@
 #   bash verify.sh                           # 실행 형태 자동 판별 (RUNTIME=native|compose 로 강제)
 #   FORM=gcp-shell RUNS=5 bash verify.sh     # 결과표에 환경 이름 태깅 · 웜 응답 5회로 p50/p95
 #   REPEAT=5 bash verify.sh                  # 검증 전체를 5회 연속 — 전 회차 PASS 여야 성공
+#   COMPARE=1 bash verify.sh                 # 7절 이관 동등성까지 (PACKAGE_DIR 의 패키지 기준선과 대조)
 #
 #   Shell 설치형은 scripts/local/50-verify.sh 가 경로·포트를 채워 이 파일을 부른다.
 #   Docker Compose 는 deploy.sh 가 이 파일을 배포 디렉토리에 받아 마지막 단계에서 부른다.
@@ -20,9 +21,17 @@
 #     4. 채팅       콜드 1회 + 웜 RUNS회 — 추천 상품 > 0 · fallback 아님 · p95 < 180초
 #     5. 데이터     색인 문서 수 · SQLite 건수 · 타임존 · FK 정합/강제 · WAL · 동시 쓰기 · 트리거
 #     6. 로그 에러  서비스 기동 이후의 에러 흔적 (경고만)
+#     7. 이관 동등성 (COMPARE=1 일 때 — 테스트1 서비스 수·패키지·DB/RAG/업로드, 테스트2 LLM 완전 일치)
 #
 #   데이터가 없는 새 환경(가입·업로드 전)은 채팅 검증을 건너뛰고 WARN 으로 둔다.
 #   이관 패키지를 복원한 환경은 REQUIRE_DATA=1 — 데이터가 없으면 FAIL.
+#
+#   7절은 package.sh compare 가 낸 비교 행을 판정으로 옮기고, 행 전체를
+#   ~/widgetrag-run/migration-compare.csv 에 누적한다 (증적: ~/widgetrag-run/migration-<시각>/).
+#   REPEAT 는 1회차에서만 7절을 돈다 — 골든 질의가 매 회차 chat_log 를 늘리고 오래 걸린다.
+#     COMPARE=1       이관 동등성 비교 (기본 0 — 운영 중 재실행에서 거짓 FAIL 이 나지 않게 꺼 둔다)
+#     GOLDEN_CHECK=0  테스트2(LLM 골든 대조)만 건너뜀 (SKIP)
+#     PACKAGE_DIR     비교할 패키지 (native ~/widgetrag-package · compose <배포디렉토리>/package)
 # ===========================================================
 set -uo pipefail
 PATH="$PATH:/snap/bin"
@@ -53,6 +62,10 @@ REPEAT="${REPEAT:-1}"
 REQUIRE_DATA="${REQUIRE_DATA:-0}"
 RUN_DIR="${RUN_DIR:-$HOME/widgetrag-run}"
 RESULTS="$RUN_DIR/results.csv"
+COMPARE="${COMPARE:-0}"
+GOLDEN_CHECK="${GOLDEN_CHECK:-1}"
+# package.sh · migcheck.py 는 이 파일과 같은 디렉토리에 있다 (native scripts/ · compose 배포 디렉토리)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OS="http://127.0.0.1:9200"
 UNITS="widgetrag-ai widgetrag-backend widgetrag-frontend"
 
@@ -88,6 +101,7 @@ case "$RUNTIME" in
     DB="$SQLITE_DB_FILE"
     APP_TZ="${APP_TZ:-${TZ:-Asia/Seoul}}"
     LOCAL_ADMIN_PASSWORD="${LOCAL_ADMIN_PASSWORD:-}"
+    PACKAGE_DIR="${PACKAGE_DIR:-$HOME/widgetrag-package}"
     ;;
   compose)
     FORM="${FORM:-docker-compose}"
@@ -97,6 +111,7 @@ case "$RUNTIME" in
     APP_TZ="${APP_TZ:-$(env_value TZ)}"; APP_TZ="${APP_TZ:-Asia/Seoul}"
     LOCAL_ADMIN_PASSWORD="${LOCAL_ADMIN_PASSWORD:-$(env_value ADMIN_PASSWORD)}"
     OLLAMA_MODEL="${OLLAMA_MODEL:-$(env_value OLLAMA_MODEL)}"
+    PACKAGE_DIR="${PACKAGE_DIR:-$COMPOSE_DIR/package}"
     ;;
   *) die "RUNTIME 은 native 또는 compose 입니다: $RUNTIME" ;;
 esac
@@ -105,11 +120,13 @@ mkdir -p "$RUN_DIR"
 
 # ---------- 반복 검증 (REPEAT>1) ----------
 # 단발 통과는 우연일 수 있다 — 전체 검증을 N회 돌려 종료코드로 판정하고, 각 회차가
-# results.csv 에 한 줄씩 남는다.
+# results.csv 에 한 줄씩 남는다. 회차 번호(_VERIFY_RUN)는 7절(이관 동등성)을 1회차에만
+# 돌리는 데 쓴다.
 if [ "$REPEAT" -gt 1 ] && [ -z "${_VERIFY_CHILD:-}" ]; then
   ok_runs=0
   for i in $(seq 1 "$REPEAT"); do
-    if _VERIFY_CHILD=1 REPEAT=1 RUNTIME="$RUNTIME" FORM="$FORM" bash "$0" > "$RUN_DIR/verify-run-$i.log" 2>&1; then
+    if _VERIFY_CHILD=1 _VERIFY_RUN="$i" REPEAT=1 RUNTIME="$RUNTIME" FORM="$FORM" PACKAGE_DIR="$PACKAGE_DIR" \
+       bash "$0" > "$RUN_DIR/verify-run-$i.log" 2>&1; then
       ok_runs=$((ok_runs + 1)); printf '  run-%02d PASS\n' "$i"
     else
       printf '  run-%02d FAIL  (%s)\n' "$i" "$RUN_DIR/verify-run-$i.log"
@@ -117,6 +134,7 @@ if [ "$REPEAT" -gt 1 ] && [ -z "${_VERIFY_CHILD:-}" ]; then
   done
   echo
   log "반복 검증: $ok_runs/$REPEAT PASS — $RESULTS"
+  [ "$COMPARE" = 1 ] && echo "  이관 동등성(7절)은 1회차에서만 수행: $RUN_DIR/verify-run-1.log"
   column -s, -t "$RESULTS" 2>/dev/null | tail -"$((REPEAT + 1))"
   [ "$ok_runs" -eq "$REPEAT" ]
   exit $?
@@ -154,6 +172,9 @@ try:
     d = json.load(sys.stdin); print($1)
 except Exception:
     print('')" 2>/dev/null
+}
+pkg_value() {  # pkg_value <키> — 비교할 패키지의 package.env 에서 값 하나 (마지막 값 우선, 없으면 빈 값)
+  { grep "^$1=" "$PACKAGE_DIR/package.env" 2>/dev/null | tail -1 | cut -d= -f2- ; } || true
 }
 
 echo "== WidgetRAG 합격 기준 검증 ($RUNTIME · FORM=$FORM) =="
@@ -400,6 +421,84 @@ else
 fi
 [ "$errs" -eq 0 ] && pass "에러 없음" || warn "총 ${errs}건 — 치명적인지는 직접 확인하세요"
 
+# 결과표(results.csv)와 이관 비교표(migration-compare.csv)의 같은 회차가 같은 시각으로 묶이게 한 번만 정한다
+RUN_TS="$(date '+%Y-%m-%d %H:%M:%S')"
+
+# ---------- 7. 이관 동등성 (COMPARE=1) ----------
+# 복원 단계 안의 대조는 복원을 건너뛰면(재실행 · 이미 있음) 돌지 않는다 — 여기서 "지금 타겟 상태"를
+# 패키지 기준선과 매번 새로 대조하는 것이 최종 판정이다. 비교 자체는 package.sh compare 가 하고,
+# 이 절은 그 결과 행을 PASS/FAIL/WARN 으로 옮긴다.
+if [ "$COMPARE" != 1 ]; then
+  # 복원한 환경인데 꺼져 있으면 알려만 준다 (판정 제외) — 운영 중 재실행에서 거짓 FAIL 을 내지 않게 기본은 끈다
+  if [ -f "$PACKAGE_DIR/.restored" ]; then
+    log "7. 이관 동등성"
+    printf '  INFO 이관 동등성 비교 꺼짐 — 테스트할 때 COMPARE=1\n'
+  fi
+elif [ "${_VERIFY_RUN:-1}" != 1 ]; then
+  # REPEAT 의 2회차부터는 건너뛴다 — 골든 질의가 매번 chat_log 를 늘리고 수십 분이 걸린다
+  log "7. 이관 동등성"
+  printf '  INFO 1회차에서만 수행 — 이번 %s회차는 건너뜀\n' "$_VERIFY_RUN"
+elif [ ! -f "$PACKAGE_DIR/checksums.sha256" ]; then
+  log "7. 이관 동등성"
+  fail "비교할 이관 패키지가 없습니다: $PACKAGE_DIR"
+else
+  log "7. 이관 동등성 (패키지 $PACKAGE_DIR)"
+  EVI="$RUN_DIR/migration-$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$EVI"
+  # 비교 행은 package.sh 의 stdout, 진행 로그는 stderr 로 나온다 — stdout 은 fd 3 으로 rows.tsv 에 받고,
+  # stderr 는 화면과 compare.log 에 함께 남긴다. 불일치가 있으면 compare 는 1 로 끝나지만
+  # 판정은 아래에서 행 단위로 한다. (PORT_AI · PORT_OLLAMA · VENV_DIR · EXPECT_SERVICE_COUNT 는
+  # 환경에 있으면 그대로 넘어간다 · </dev/null — 안쪽 명령이 호출자 stdin 을 삼키지 않게)
+  cmp_rc=0
+  { RUNTIME="$RUNTIME" COMPOSE_DIR="$COMPOSE_DIR" STORAGE_DIR="$STORAGE_DIR" PORT_FRONTEND="${PORT_FRONTEND:-80}" \
+      GOLDEN_CHECK="$GOLDEN_CHECK" OLLAMA_MODEL="$OLLAMA_MODEL" \
+      bash "$SCRIPT_DIR/package.sh" compare "$PACKAGE_DIR" --evidence "$EVI" 2>&1 1>&3 </dev/null \
+      | tee "$EVI/compare.log" >&2; cmp_rc=${PIPESTATUS[0]}; } 3> "$EVI/rows.tsv"
+  # 끝까지 돌았는지 — 받은 행만으로 판정하면 중간에 끝난 비교(타임아웃 · OOM · 도중 오류)가 빠진 단계를
+  # 남긴 채 PASS 로 보인다. compare 는 단계마다 .compare-stage 에 적고 끝나면 done 을 쓴다 (종료코드 1 은
+  # "FAIL 행 있음" 과 "set -e 로 죽음" 을 못 가르므로 표시 파일로 본다). 멈춘 단계에 FAIL 행을 붙여
+  # 아래 판정과 migration-compare.csv 양쪽에 남긴다.
+  cmp_stage="$(cat "$EVI/.compare-stage" 2>/dev/null)" || cmp_stage=""
+  if [ "$cmp_stage" != "done" ] || [ "$cmp_rc" -gt 1 ]; then
+    case "$cmp_stage" in T1-1|T1-2|T1-3|T2) ;; *) cmp_stage=T1-1 ;; esac   # 첫 단계 전에 끝났으면 T1-1 로
+    # 마지막 행이 쓰다 끊겼으면(개행 없음) 줄을 바꾼 뒤 붙인다 — 붙여 쓰면 두 행이 한 줄로 섞인다
+    if [ -s "$EVI/rows.tsv" ] && [ -n "$(tail -c1 "$EVI/rows.tsv")" ]; then echo >> "$EVI/rows.tsv"; fi
+    printf '%s\tcompare:incomplete\t-\t종료코드 %s\tFAIL\t비교가 끝까지 수행되지 않음 — %s\n' \
+      "$cmp_stage" "$cmp_rc" "$EVI/compare.log" >> "$EVI/rows.tsv"
+  fi
+  if [ ! -s "$EVI/rows.tsv" ]; then
+    fail "이관 동등성 비교 실패 — $EVI/compare.log"
+  else
+    # 행 형식: test · item · source · target · result · note (탭 구분, 빈 값은 "-").
+    # 탭은 read 가 공백류로 보고 연속된 칸을 하나로 합치므로, 칸 구분을 \037 로 바꿔 읽는다 —
+    # 빈 칸이 섞여도 열이 밀리지 않는다.
+    while IFS=$'\037' read -r m_test m_item m_src m_tgt m_res m_note || [ -n "$m_test" ]; do
+      [ -n "$m_test" ] || continue
+      if [ "$m_note" = - ]; then m_note=""; fi
+      case "$m_res" in
+        PASS)      pass "[$m_test] $m_item${m_note:+ — $m_note}" ;;
+        FAIL)      fail "[$m_test] $m_item — $m_src → $m_tgt${m_note:+ ($m_note)}" ;;
+        WARN)      warn "[$m_test] $m_item — $m_src → $m_tgt${m_note:+ ($m_note)}" ;;
+        SKIP|INFO) printf '  %s [%s] %s — %s%s\n' "$m_res" "$m_test" "$m_item" "$m_tgt" "${m_note:+ ($m_note)}" ;;
+        # 행 형식이 깨졌으면 증거로 쓸 수 없다 — 조용히 넘기지 않는다
+        *)         fail "[$m_test] $m_item — 비교 행을 해석할 수 없음 (판정 '${m_res}' · $EVI/rows.tsv)" ;;
+      esac
+    done < <(tr '\t' '\037' < "$EVI/rows.tsv")
+
+    src_form="$(pkg_value SOURCE_FORM)"; pkg_name="$(pkg_value SNAPSHOT_NAME)"
+    summary_line="$(python3 "$SCRIPT_DIR/migcheck.py" report --rows "$EVI/rows.tsv" \
+      --csv "$RUN_DIR/migration-compare.csv" --timestamp "$RUN_TS" --form "$FORM" \
+      --source-form "${src_form:--}" --package "${pkg_name:--}" --summary "$EVI/summary.txt")" || true
+    summary_line="${summary_line%%$'\n'*}"
+    if [ -n "$summary_line" ]; then
+      log "$summary_line"
+    else
+      warn "이관 동등성 요약을 만들지 못했습니다 (migcheck.py report) — 행은 $EVI/rows.tsv"
+    fi
+  fi
+  echo "  증적: $EVI"
+fi
+
 # ---------- 결과 누적 ----------
 HEADER="timestamp,form,runs,pass,fail,cold_sec,p50_sec,p95_sec,sources,os_docs,db_msgs,result"
 # 열이 바뀐 뒤 옛 파일에 덧붙이면 칸이 밀려 읽을 수 없다 — 헤더가 다르면 비켜두고 새로 시작한다.
@@ -409,7 +508,7 @@ if [ -f "$RESULTS" ] && [ "$(head -1 "$RESULTS")" != "$HEADER" ]; then
 fi
 [ -f "$RESULTS" ] || echo "$HEADER" > "$RESULTS"
 VERDICT="$([ "$FAIL" -eq 0 ] && echo PASS || echo FAIL)"
-echo "$(date '+%Y-%m-%d %H:%M:%S'),${FORM},${RUNS},${PASS},${FAIL},$(secs "$COLD_MS"),$(secs "$WARM_MS"),$(secs "$P95_MS"),${SRC_COUNT:-0},${OS_DOCS:-0},${DB_MSGS:-0},${VERDICT}" >> "$RESULTS"
+echo "${RUN_TS},${FORM},${RUNS},${PASS},${FAIL},$(secs "$COLD_MS"),$(secs "$WARM_MS"),$(secs "$P95_MS"),${SRC_COUNT:-0},${OS_DOCS:-0},${DB_MSGS:-0},${VERDICT}" >> "$RESULTS"
 
 echo
 log "결과: ${PASS} PASS / ${FAIL} FAIL → ${VERDICT}"

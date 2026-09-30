@@ -12,6 +12,8 @@
 #     CLIENT_CODE=shop_xxxx ./50-verify.sh        # 채팅할 회사 지정 (기본: 상품이 가장 많은 승인된 회사)
 #     VERIFY_ADMIN_PASSWORD=<소스 비밀번호> ./50-verify.sh   # 이관된 DB 의 관리자 로그인까지 판정
 #     EXPECT_TRIGGERS=0 ./50-verify.sh            # 트리거 수를 소스 값과 대조
+#     COMPARE=1 ./50-verify.sh                    # 7절 이관 동등성 — $PACKAGE_DIR 의 패키지 기준선과 대조
+#     COMPARE=1 GOLDEN_CHECK=0 ./50-verify.sh     # 테스트1(서비스·패키지·데이터)만 — LLM 골든 대조 생략
 # ===========================================================
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
@@ -23,6 +25,9 @@ fi
 
 export RUNTIME=native
 export PORT_FRONTEND STORAGE_DIR SQLITE_DB_FILE APP_TZ OLLAMA_MODEL
+# 7절(COMPARE=1)의 package.sh compare 가 쓴다 — 패키지 위치 · AI/Ollama 포트 · venv(지문의 python·torch 버전).
+# COMPARE · GOLDEN_CHECK 는 호출자 환경에서 그대로 흐른다.
+export PACKAGE_DIR PORT_AI PORT_OLLAMA VENV_DIR
 export ADMIN_EMAIL="$WIDGETRAG_ADMIN_EMAIL"
 export LOCAL_ADMIN_PASSWORD="$WIDGETRAG_ADMIN_PASSWORD"
 export FK_CONFIG_FILE="$BACKEND_DIR/src/main/resources/application-local.yaml"

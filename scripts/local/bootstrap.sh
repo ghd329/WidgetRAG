@@ -43,6 +43,8 @@
 #     SNAPSHOT_URI  이관 패키지 위치 (s3:// · gs:// · https:// · 로컬 경로) — scripts/package.sh
 #     NO_DRIVER=1   드라이버 단계 스킵 (GPU 이미지 · GPU 없는 검증 VM)
 #     NO_START=1    준비만 하고 기동은 안 함 (= --install)
+#     OLLAMA_VERSION Ollama 고정 버전 (기본 0.34.3 — Docker Compose llm 이미지와 같게, env.sh · 빈 값이면 최신)
+#     COMPARE=1     마지막 검증에서 이관 동등성까지 대조 (GOLDEN_CHECK=0 이면 LLM 골든 대조 생략)
 #
 #   재개 유닛 로그: sudo journalctl -u widgetrag-bootstrap-resume -f
 # ===========================================================
@@ -63,7 +65,8 @@ RESUME_ENV="/etc/widgetrag/bootstrap-resume.env"
 
 # 재실행 · 재부팅 재개 때 넘겨야 하는 값 — 설정된 것만 넘긴다
 PASS_VARS=(REPO_URL BRANCH COMMIT TARGET_DIR SNAPSHOT_URI S3_ENDPOINT_URL NO_DRIVER FORCE_RESTORE
-           LLM_TEMPERATURE LLM_SEED APP_TZ OLLAMA_MODEL FORM RUNS REQUIRE_DATA VERIFY_ADMIN_PASSWORD
+           LLM_TEMPERATURE LLM_SEED APP_TZ OLLAMA_MODEL OLLAMA_VERSION FORM RUNS REQUIRE_DATA VERIFY_ADMIN_PASSWORD
+           COMPARE GOLDEN_CHECK EXPECT_SERVICE_COUNT
            AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_DEFAULT_REGION)
 
 # 이관 도구로 실행되면 TTY 가 없고 출력이 로그로 수집된다 — 그때는 색상 제어문자를 쓰지 않는다.
@@ -92,7 +95,12 @@ apt_get() {  # apt_get <인자...> — root 면 그대로, 아니면 sudo env �
 pass_env() {  # 설정된 PASS_VARS 를 NUL 구분 KEY=VALUE 로 출력
   local v
   for v in "${PASS_VARS[@]}"; do
-    [ -n "${!v:-}" ] && printf '%s\0' "$v=${!v}"
+    if [ -n "${!v:-}" ]; then
+      printf '%s\0' "$v=${!v}"
+    elif [ "$v" = OLLAMA_VERSION ] && [ -n "${!v+x}" ]; then
+      # OLLAMA_VERSION= (빈 값)은 "최신 설치" 라는 뜻이다 — 빈 값도 넘겨야 env.sh 의 기본값(고정 버전)으로 바뀌지 않는다
+      printf '%s\0' "$v="
+    fi
   done
   return 0
 }

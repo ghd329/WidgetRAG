@@ -49,9 +49,18 @@ sudo install -d -o opensearch -g opensearch /var/lib/opensearch/snapshots
 echo 'vm.max_map_count=262144' | sudo tee /etc/sysctl.d/99-opensearch.conf >/dev/null
 sudo sysctl -p /etc/sysctl.d/99-opensearch.conf >/dev/null
 
-command -v ollama >/dev/null 2>&1 || {
-  log "Ollama 설치 (공식 스크립트)"
-  curl -fsSL https://ollama.com/install.sh | sh
-}
+# Ollama 는 env.sh 의 OLLAMA_VERSION 으로 고정한다 — Docker Compose llm 이미지와 같은 버전이어야
+# 교차 이관(A↔B)에서 LLM 응답이 완전히 일치한다. 공식 install.sh 가 이 변수를 읽는다 (빈 값이면 최신).
+if ! command -v ollama >/dev/null 2>&1; then
+  log "Ollama ${OLLAMA_VERSION:-최신} 설치 (공식 스크립트)"
+  curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION="$OLLAMA_VERSION" sh
+elif [ -n "$OLLAMA_VERSION" ]; then
+  # 이미 깔려 있으면 다시 깔지 않는다 — 서비스 중인 LLM 을 설치 단계가 몰래 바꾸면 안 된다. 알리기만 한다.
+  # (서버가 꺼져 있으면 ollama -v 가 경고 줄을 먼저 찍는다 — 마지막 버전 표기가 클라이언트 버전)
+  OLLAMA_CUR="$(ollama -v 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | tail -1 || true)"
+  if [ "$OLLAMA_CUR" != "$OLLAMA_VERSION" ]; then
+    warn "Ollama ${OLLAMA_CUR:-버전 확인 불가} — 고정 버전 $OLLAMA_VERSION 과 다릅니다. 맞추려면: curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=$OLLAMA_VERSION sh"
+  fi
+fi
 
 log "Phase A 완료 — 다음: ./20-start-infra.sh"

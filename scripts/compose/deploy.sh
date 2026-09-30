@@ -11,10 +11,11 @@
 #     curl -fsSL <위 주소> | SNAPSHOT_URI=s3://버킷/widgetrag/<시각> bash
 #
 #   ★ 저장소와 독립적으로 동작한다 — 타겟에 git 도 소스도 필요 없다. 이미지가 곧 산출물이고,
-#     저장소에서 raw 로 받는 것은 아래 4개가 전부다 (Shell 설치형 bootstrap.sh 가 clone 해서
+#     저장소에서 raw 로 받는 것은 아래 5개가 전부다 (Shell 설치형 bootstrap.sh 가 clone 해서
 #     빌드하는 것과 대비되는 지점).
 #       docker-compose.yml · docker-compose.images.yml   compose 정의 (build: 는 오버레이가 지움)
 #       package.sh · verify.sh                            이관 패키지 복원 · 합격 기준 검증 (두 형태 공용)
+#       migcheck.py                                       이관 동등성 기준선 · 비교 계산 (package.sh 가 부름)
 #
 #   수행 내용 (멱등 — 재실행하면 이미 끝난 단계는 건너뛴다)
 #     0) root 로 실행되면 uid 1000 사용자로, 파이프로 들어오면 디스크 사본으로 다시 실행
@@ -41,6 +42,7 @@
 #     NO_DRIVER=1     드라이버 단계 건너뜀 (GPU 이미지 · GPU 없는 검증 VM)
 #     NO_START=1      준비만 하고 기동은 안 함
 #     SKIP_VERIFY=1   마지막 검증을 건너뜀
+#     COMPARE=1       마지막 검증에서 이관 동등성까지 대조 (GOLDEN_CHECK=0 이면 LLM 골든 대조 생략)
 #
 #   기동 후: 모델(gemma3:4b, 약 3.3GB)은 llm 컨테이너가 자동 pull — 최초 수 분 소요.
 #   재부팅 재개 로그: sudo journalctl -u widgetrag-compose-resume -f
@@ -61,8 +63,8 @@ RESUME_ENV="/etc/widgetrag/compose-resume.env"
 
 # 재실행 · 재부팅 재개 때 넘겨야 하는 값 — 사람이 지정한 것만 넘긴다 (기본값 적용 전에 판단)
 PASS_VARS=(BRANCH REPO_RAW WORK_DIR REGISTRY_PREFIX IMAGE_TAG SNAPSHOT_URI S3_ENDPOINT_URL FORCE_RESTORE NO_DRIVER
-           NO_START SKIP_VERIFY LLM_TEMPERATURE LLM_SEED FORM RUNS VERIFY_ADMIN_PASSWORD
-           AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_DEFAULT_REGION)
+           NO_START SKIP_VERIFY LLM_TEMPERATURE LLM_SEED FORM RUNS VERIFY_ADMIN_PASSWORD COMPARE GOLDEN_CHECK
+           EXPECT_SERVICE_COUNT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_DEFAULT_REGION)
 
 # 이관 도구로 실행되면 TTY 가 없고 출력이 로그로 수집된다 — 그때는 색상 제어문자를 쓰지 않는다.
 if [ -t 1 ]; then
@@ -273,6 +275,7 @@ curl -fsSL "$RAW_BASE/docker-compose.yml"        -o docker-compose.yml        ||
 curl -fsSL "$RAW_BASE/docker-compose.images.yml" -o docker-compose.images.yml || die "docker-compose.images.yml 수신 실패"
 curl -fsSL "$RAW_BASE/scripts/package.sh"        -o package.sh                || die "package.sh 수신 실패"
 curl -fsSL "$RAW_BASE/scripts/verify.sh"         -o verify.sh                 || die "verify.sh 수신 실패"
+curl -fsSL "$RAW_BASE/scripts/migcheck.py"       -o migcheck.py               || die "migcheck.py 수신 실패"
 chmod +x package.sh verify.sh
 # caddy 는 구성에서 뺐다 (frontend 의 nginx 가 /api 를 프록시) — 예전 배포가 남긴 파일은 치운다
 if [ -e Caddyfile ]; then sudo rm -rf Caddyfile; log "구성 축소 — 예전 Caddyfile 제거 (caddy 서비스 삭제됨)"; fi
@@ -392,12 +395,16 @@ VERIFY_RESULT="건너뜀"
 if [ "${SKIP_VERIFY:-0}" != 1 ]; then
   echo
   if [ -f "$PACKAGE_DIR/.restored" ]; then export REQUIRE_DATA="${REQUIRE_DATA:-1}"; fi
-  if RUNTIME=compose COMPOSE_DIR="$WORK_DIR" bash ./verify.sh; then VERIFY_RESULT=PASS; else VERIFY_RESULT=FAIL; fi
+  # PACKAGE_DIR — 7절(COMPARE=1)이 대조할 패키지. COMPARE · GOLDEN_CHECK 는 환경에서 그대로 흐른다.
+  if RUNTIME=compose COMPOSE_DIR="$WORK_DIR" PACKAGE_DIR="$PACKAGE_DIR" bash ./verify.sh; then VERIFY_RESULT=PASS; else VERIFY_RESULT=FAIL; fi
 fi
 
 echo
-log "완료 ($(( $(date +%s) - TOTAL_START ))초) — 타겟에 있는 것: deploy.sh · compose 2개 · package.sh · verify.sh · .env · 컨테이너 (소스·git 없음)"
+log "완료 ($(( $(date +%s) - TOTAL_START ))초) — 타겟에 있는 것: deploy.sh · compose 2개 · package.sh · verify.sh · migcheck.py · .env · 컨테이너 (소스·git 없음)"
 echo "  검증 결과         : $VERIFY_RESULT  (누적: ~/widgetrag-run/results.csv)"
+if [ "${COMPARE:-0}" = 1 ] && [ "$VERIFY_RESULT" != 건너뜀 ]; then
+  echo "  이관 동등성       : ~/widgetrag-run/migration-compare.csv  (증적: ~/widgetrag-run/migration-<시각>/summary.txt)"
+fi
 echo "  [로컬 PC] 터널    : ssh -N -L 8081:localhost:80 ubuntu@<타겟IP>   (이후 로컬 브라우저로 접속)"
 echo "  콘솔(가입/로그인) : http://localhost:8081/login/company-signup.html"
 echo "  데모샵(위젯)      : http://localhost:8081/demo-shop/demo-living.html?client=<발급코드>"

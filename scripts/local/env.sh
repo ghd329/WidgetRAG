@@ -41,6 +41,10 @@ OPENSEARCH_VERSION="2.18.0"
 OLLAMA_MODEL="${OLLAMA_MODEL:-gemma3:4b}"
 # 사내망에서 Ollama 레지스트리 대용량 블롭이 차단될 때의 우회 경로 (HuggingFace GGUF)
 OLLAMA_MODEL_HF_FALLBACK="${OLLAMA_MODEL_HF_FALLBACK:-hf.co/unsloth/gemma-3-4b-it-GGUF:Q4_K_M}"
+# Ollama 버전 고정 — Docker Compose llm-v0.3.0 이미지와 같은 버전. 교차 이관(A↔B) LLM 응답 완전 일치의 전제
+# (버전이 다르면 temperature 0 · seed 고정이어도 토큰이 갈릴 수 있다). 최신을 쓰려면 OLLAMA_VERSION= (빈 값).
+# ※ 빈 값을 "최신"으로 살리려고 ':-' 가 아니라 '-' 로 기본값을 준다 (':-' 면 빈 값도 0.34.3 으로 바뀐다)
+OLLAMA_VERSION="${OLLAMA_VERSION-0.34.3}"
 
 # --- 관리자 계정 (백엔드 최초 기동 시 생성) ---
 WIDGETRAG_ADMIN_EMAIL="${WIDGETRAG_ADMIN_EMAIL:-admin@widgetrag.com}"

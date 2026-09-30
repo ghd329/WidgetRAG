@@ -108,6 +108,33 @@ SNAPSHOT_URI=s3://버킷/widgetrag/20260924-1030 ./start.sh
 타겟에 DB · 색인이 이미 있으면 복원을 건너뛴다 (재실행 안전, 덮어쓰려면 `FORCE_RESTORE=1`).
 관리자 비밀번호는 패키지에 넣지 않는다 — 이관된 DB 의 계정은 **소스의 비밀번호**로 로그인한다.
 
+## 이관 동등성 테스트
+
+소스에서 패키지를 뜰 때 기준선(데이터 해시 · LLM 골든 답변)을 함께 싣고, 타겟 검증의 7절이 그것과 대조한다.
+기본은 꺼져 있다(`COMPARE=0`) — 테스트할 때만 켠다.
+
+```bash
+# [소스] 결정적 설정으로 재기동 → 기준선 + 골든(질문 5개 × 2회)까지 패키지 생성
+#   RUNTIME=native 를 적는다 — 같은 VM 에 Docker Compose 가 떠 있으면 자동 판별이 compose 를 골라 B 의 기준선을 뜬다
+LLM_TEMPERATURE=0 LLM_SEED=42 ./40-start-apps.sh
+RUNTIME=native GOLDEN=1 UPLOAD_URI=s3://버킷/widgetrag/$(date +%Y%m%d-%H%M) bash ../package.sh backup
+
+# [타겟] 같은 결정적 설정으로 복원 · 기동 · 대조 (이미 올라간 환경이면 COMPARE=1 ./50-verify.sh)
+curl -fsSL <bootstrap 주소> | SNAPSHOT_URI=s3://버킷/widgetrag/<시각> LLM_TEMPERATURE=0 LLM_SEED=42 COMPARE=1 bash
+```
+
+- 결과는 `~/widgetrag-run/migration-compare.csv` 에 행 단위로 쌓이고, 증적(원시 응답 · 해시 · 차이)은
+  `~/widgetrag-run/migration-<시각>/` — 요약은 그 안의 `summary.txt`.
+- **테스트1** (데이터 이관): ① 서비스 · 컨테이너 수와 역할 ② 패키지 파일별 용량 · SHA-256 ③ 데이터 내용 —
+  DB 테이블별 행 해시(`chat_log` 는 이관 시점까지, 업로드 경로 접두사는 정규화) · 색인 문서 해시 · 업로드 파일.
+- **테스트2** (LLM 완전 일치): 골든 질문마다 **답변 문자열 바이트 단위 동일 + 추천 상품 목록 · 순서 동일 + fallback 아님**.
+  전제는 같은 **Ollama 버전 · 모델 digest · GPU** — temperature · seed · 모델이 다르면 FAIL, 환경 차이는 WARN 으로 원인을 짚는다.
+- Shell 설치형은 Ollama 를 `OLLAMA_VERSION=0.34.3`(env.sh 기본값 — Docker Compose llm 이미지와 같은 버전)으로 설치한다.
+  이미 다른 버전이 깔려 있으면 `10-install-tools.sh` 가 경고만 한다 (재설치 명령을 함께 출력).
+- `GOLDEN_CHECK=0` 이면 테스트2 만 건너뛴다 (SKIP).
+- `package.sh` 는 같은 디렉토리의 `migcheck.py`(해시 · 판정 계산)를 쓴다 — `backup` 도 이것이 없으면 멈춘다.
+  저장소에 함께 있으니 따로 복사해 쓸 때는 둘을 같이 옮긴다.
+
 ## 접속
 
 외부 포트는 열지 않는다(보안 그룹은 22 만). 두 형태 모두 같은 터널 하나로 들어온다.
@@ -163,6 +190,7 @@ bash ../package.sh backup|fetch|restore   # 이관 패키지 도구 (두 형태 
 |---|---|---|
 | `WIDGETRAG_ADMIN_PASSWORD` | (미지정 시 무작위 생성) | 관리자 계정 비밀번호 — 최초 실행에서 자동 생성되어 `scripts/local/.admin-password`(600)에 저장·재사용 |
 | `OLLAMA_MODEL` | `gemma3:4b` | 레지스트리 차단 시 HuggingFace 경유 자동 폴백 |
+| `OLLAMA_VERSION` | `0.34.3` | Ollama 고정 버전 — Docker Compose llm 이미지와 같게 (교차 이관 LLM 응답 일치의 전제). 빈 값이면 최신 |
 | `LLM_TEMPERATURE` · `LLM_SEED` | `0.7` · (없음) | 이관 전후 동등성 비교는 `0` · `42` 처럼 결정적 설정으로 |
 | `APP_TZ` | `Asia/Seoul` | 앱의 시각 기준 (`TZ` 로 넘어감) — VM 이미지의 기본 타임존과 무관하게 고정 |
 | `PORT_FRONTEND` | `80` | 5500/5501/3000 은 쓰지 말 것 — `api.js` 가 로컬 개발로 보고 `:8080` 을 직접 부른다 |
