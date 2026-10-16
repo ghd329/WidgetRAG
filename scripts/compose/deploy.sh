@@ -22,6 +22,9 @@
 #        (curl | bash 에서 docker compose exec 등이 stdin 을 읽어 남은 본문을 삼키는 문제 — LexAI 결함 4)
 #     1) 기본 도구 (curl · sqlite3 · pigz …)
 #     2) NVIDIA 드라이버 — 없으면 설치 후 재부팅, 부팅이 끝나면 같은 지점부터 자동 재개
+#        재개 뒤에는 유닛을 disable 만 하고, 파일 삭제는 모든 단계가 끝난 뒤에 한다 (유닛 안에서 실행 중이면
+#        daemon-reload 생략). ★ 2026-10-16 T-002: 재개 직후 파일을 지우고 reload 하면 systemd 가 실행 중인
+#        유닛의 설정(TimeoutStartSec=0)을 잃고 기본 90초 타임아웃으로 설치 도중 프로세스를 종료시켰다.
 #     3) Docker 엔진 + Compose v2.24+ + nvidia-container-toolkit → 컨테이너 GPU 통과 확인
 #     4) 배포 파일 수신 · .env 생성(관리자 비밀번호 무작위 발급)
 #     5) 이미지 pull → SNAPSHOT_URI 가 있으면 패키지 수신 → 앱보다 먼저 DB · 색인 복원 → 전체 기동
@@ -126,7 +129,7 @@ if [ "$(id -u)" -eq 0 ] && [ "${WIDGETRAG_REEXEC:-0}" != 1 ]; then
   command -v curl >/dev/null 2>&1 || { apt_get update -qq; apt_get install -y -q curl ca-certificates; }
   fetch_self "$WORK_DIR/deploy.sh" "$RUN_USER"
   mapfile -d '' ENV_ARGS < <(pass_env)
-  exec sudo -u "$RUN_USER" -H env WIDGETRAG_REEXEC=1 WIDGETRAG_FROMFILE=1 "${ENV_ARGS[@]}" \
+  exec sudo -u "$RUN_USER" -H env WIDGETRAG_REEXEC=1 WIDGETRAG_FROMFILE=1 WIDGETRAG_RESUME="${WIDGETRAG_RESUME:-0}" "${ENV_ARGS[@]}" \
     WORK_DIR="$WORK_DIR" bash "$WORK_DIR/deploy.sh" "$@" </dev/null
 fi
 
@@ -189,6 +192,7 @@ if need_driver; then
   {
     echo "HOME=$HOME"
     echo "WIDGETRAG_FROMFILE=1"
+    echo "WIDGETRAG_RESUME=1"
     echo "WORK_DIR=$WORK_DIR"
     for kv in "${RESUME_ARGS[@]}"; do
       v="${kv#*=}"; v="${v//\\/\\\\}"; v="${v//\"/\\\"}"
@@ -219,12 +223,29 @@ EOF
   sudo reboot
   exit 0
 fi
+# 재개 유닛이 남아 있으면 다음 부팅부터 돌지 않도록 해제만 한다 (재부팅 경유로 여기 도달한 경우).
+# ★ 여기서 유닛 파일을 지우거나 daemon-reload 하지 않는다 — 이 프로세스가 그 유닛 안에서 실행 중일 때
+#   파일이 없는 채 reload 하면 systemd 가 유닛 설정(TimeoutStartSec=0)을 잃고 기본 90초 타임아웃으로
+#   설치 도중 프로세스를 종료시킨다 (2026-10-16 T-002). 파일 정리는 맨 끝 cleanup_resume_unit 에서.
+RESUME_CLEANUP=0
 if [ -f "/etc/systemd/system/$RESUME_UNIT.service" ]; then
-  log "재부팅 후 자동 재개 — 재개 유닛 정리"
+  log "재부팅 후 자동 재개 — 다음 부팅부터 돌지 않도록 유닛 해제 (파일 정리는 완료 후)"
   sudo systemctl disable "$RESUME_UNIT" >/dev/null 2>&1 || true
-  sudo rm -f "/etc/systemd/system/$RESUME_UNIT.service" "$RESUME_ENV"
-  sudo systemctl daemon-reload
+  RESUME_CLEANUP=1
 fi
+
+cleanup_resume_unit() {  # 모든 단계가 끝난 뒤 호출 — 유닛 파일 · 환경 파일(자격증명 포함 가능) 삭제
+  [ "$RESUME_CLEANUP" = 1 ] || return 0
+  sudo rm -f "/etc/systemd/system/$RESUME_UNIT.service" "$RESUME_ENV"
+  if [ "${WIDGETRAG_RESUME:-0}" = 1 ] || [ -n "${INVOCATION_ID:-}" ]; then
+    # 유닛 안에서 실행 중 — reload 하면 위 T-002 와 같은 이유로 종료된다. 다음 reload · 부팅 때 사라진다.
+    log "재개 유닛 파일 정리 완료 (유닛 안에서 실행 중이라 daemon-reload 는 생략)"
+  else
+    sudo systemctl daemon-reload
+    sudo systemctl reset-failed "$RESUME_UNIT" >/dev/null 2>&1 || true
+    log "재개 유닛 파일 정리 완료"
+  fi
+}
 nvidia-smi >/dev/null 2>&1 && log "GPU 확인: $(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader | head -1)"
 
 # ---------- 3. Docker 엔진 + nvidia-container-toolkit ----------
@@ -342,6 +363,7 @@ wait_until() {  # wait_until <설명> <최대초> <명령...>
 }
 
 if [ "${NO_START:-0}" = 1 ]; then
+  cleanup_resume_unit
   log "준비 완료 (NO_START=1 — 기동은 하지 않았습니다)"
   echo "  기동: bash $WORK_DIR/deploy.sh"
   exit 0
@@ -413,4 +435,6 @@ echo "  상태 / 로그       : cd $WORK_DIR && sudo docker compose ps · sudo d
 echo "  종료 / 재기동     : cd $WORK_DIR && sudo docker compose down · bash $WORK_DIR/deploy.sh"
 echo "  이관 패키지 생성  : cd $WORK_DIR && bash package.sh backup   (UPLOAD_URI=s3://… 면 업로드까지)"
 echo "  ※ API 문서(swagger)는 B에서 외부 미노출 — 외부 포트는 frontend 80뿐 (의도된 구성)"
+# 재개 유닛 파일 정리 — 배포가 끝까지 갔을 때만 (검증 FAIL 이면 유닛 파일을 남겨 둔다. disable 상태라 다음 부팅에 돌지는 않는다)
+[ "$VERIFY_RESULT" = FAIL ] || cleanup_resume_unit
 [ "$VERIFY_RESULT" != FAIL ]

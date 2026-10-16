@@ -29,9 +29,13 @@
 #     3) NVIDIA 드라이버 — GPU가 있는데 드라이버가 없으면 설치 후 재부팅.
 #        재부팅 전에 systemd oneshot(widgetrag-bootstrap-resume)을 등록해 같은 단계부터 자동 재개.
 #        curl | bash 앞에 붙인 환경변수(SNAPSHOT_URI 등)는 재부팅 뒤에 사라지므로 함께 넘긴다.
+#        재개 뒤에는 유닛을 disable 만 한다 — 파일 삭제는 5) 에서 (아래 T-002 참고).
 #     4) 실행 형태 진입
 #        --start   : install.sh → start.sh (인프라 → 패키지 복원 → 앱 → 검증)  ← 기본
 #        --install : install.sh            (도구 설치 + 설정, 기동 전까지)
+#     5) 재개 유닛 파일 정리 — 모든 단계가 끝난 뒤에만. 유닛 안에서 실행 중이면 daemon-reload 는 생략.
+#        ★ 2026-10-16 T-002: 재개 직후 유닛 파일을 지우고 daemon-reload 하면 systemd 가 실행 중인 유닛의
+#          설정(TimeoutStartSec=0)을 잃고 기본 90초 타임아웃으로 설치 도중 프로세스를 종료시켰다.
 #
 #   환경변수 (전부 선택)
 #     REPO_URL      기본 https://github.com/ghd329/WidgetRAG.git — public, 자격증명 불필요
@@ -162,7 +166,7 @@ if [ "$(id -u)" -eq 0 ] && [ "${WIDGETRAG_REEXEC:-0}" != 1 ]; then
   # 소유자가 달라 이후 git 이 dubious ownership 으로 거부한다)
   sync_repo sudo -u "$RUN_USER" -H
   mapfile -d '' ENV_ARGS < <(pass_env)
-  exec sudo -u "$RUN_USER" -H env WIDGETRAG_REEXEC=1 WIDGETRAG_FROMFILE=1 "${ENV_ARGS[@]}" \
+  exec sudo -u "$RUN_USER" -H env WIDGETRAG_REEXEC=1 WIDGETRAG_FROMFILE=1 WIDGETRAG_RESUME="${WIDGETRAG_RESUME:-0}" "${ENV_ARGS[@]}" \
     TARGET_DIR="$TARGET_DIR" BRANCH="$BRANCH" \
     bash "$TARGET_DIR/scripts/local/bootstrap.sh" "$MODE" </dev/null
 fi
@@ -206,6 +210,7 @@ if need_driver; then
   {
     echo "HOME=$HOME"
     echo "WIDGETRAG_FROMFILE=1"
+    echo "WIDGETRAG_RESUME=1"
     pass_env | while IFS= read -r -d '' kv; do
       v="${kv#*=}"; v="${v//\\/\\\\}"; v="${v//\"/\\\"}"
       printf '%s="%s"\n' "${kv%%=*}" "$v"
@@ -235,13 +240,29 @@ EOF
   exit 0
 fi
 
-# 재개 유닛이 남아 있으면 정리 (재부팅 경유로 여기 도달한 경우)
+# 재개 유닛이 남아 있으면 다음 부팅부터 돌지 않도록 해제만 한다 (재부팅 경유로 여기 도달한 경우).
+# ★ 여기서 유닛 파일을 지우거나 daemon-reload 하지 않는다 — 이 프로세스가 그 유닛 안에서 실행 중일 때
+#   파일이 없는 채 reload 하면 systemd 가 유닛 설정(TimeoutStartSec=0)을 잃고 기본 90초 타임아웃으로
+#   설치 도중 프로세스를 종료시킨다 (2026-10-16 T-002). 파일 정리는 맨 끝 cleanup_resume_unit 에서.
+RESUME_CLEANUP=0
 if [ -f "/etc/systemd/system/$RESUME_UNIT.service" ]; then
-  log "자동 재개 완료 — 재개 유닛 정리"
+  log "자동 재개 — 다음 부팅부터 돌지 않도록 유닛 해제 (파일 정리는 완료 후)"
   sudo systemctl disable "$RESUME_UNIT" >/dev/null 2>&1 || true
-  sudo rm -f "/etc/systemd/system/$RESUME_UNIT.service" "$RESUME_ENV"
-  sudo systemctl daemon-reload
+  RESUME_CLEANUP=1
 fi
+
+cleanup_resume_unit() {  # 모든 단계가 끝난 뒤 호출 — 유닛 파일 · 환경 파일(자격증명 포함 가능) 삭제
+  [ "$RESUME_CLEANUP" = 1 ] || return 0
+  sudo rm -f "/etc/systemd/system/$RESUME_UNIT.service" "$RESUME_ENV"
+  if [ "${WIDGETRAG_RESUME:-0}" = 1 ] || [ -n "${INVOCATION_ID:-}" ]; then
+    # 유닛 안에서 실행 중 — reload 하면 위 T-002 와 같은 이유로 종료된다. 다음 reload · 부팅 때 사라진다.
+    log "재개 유닛 파일 정리 완료 (유닛 안에서 실행 중이라 daemon-reload 는 생략)"
+  else
+    sudo systemctl daemon-reload
+    sudo systemctl reset-failed "$RESUME_UNIT" >/dev/null 2>&1 || true
+    log "재개 유닛 파일 정리 완료"
+  fi
+}
 if nvidia-smi >/dev/null 2>&1; then
   log "GPU 확인: $(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)"
 fi
@@ -253,3 +274,6 @@ case "$MODE" in
   --start)   "$TARGET_DIR/scripts/local/install.sh"
              "$TARGET_DIR/scripts/local/start.sh" ;;
 esac
+
+# ---------- 5. 재개 유닛 파일 정리 (set -e 라 여기 도달하면 위 단계가 모두 성공한 것) ----------
+cleanup_resume_unit
