@@ -86,6 +86,7 @@ toolkit 이 없거나 설정이 틀리면 **에러 없이 CPU 로 폴백한다.*
 | `S3_ENDPOINT_URL` | — | S3 호환 스토리지 주소 (NCP 등) |
 | `FORCE_RESTORE=1` | — | DB · 색인이 이미 있어도 패키지로 덮어씀 |
 | `LLM_TEMPERATURE` · `LLM_SEED` | `0.7` · — | 동등성 비교용 결정적 설정 — 지정하면 `.env` 에 반영 |
+| `OLLAMA_KEEP_ALIVE` | `24h` | llm 컨테이너가 모델을 VRAM 에 올려 둔 채 유지하는 시간 (`.env` → compose 환경). Shell 설치형과 같은 값 |
 | `NO_DRIVER=1` · `NO_START=1` · `SKIP_VERIFY=1` | — | 드라이버 생략 · 준비만 · 검증 생략 |
 | `COMPARE=1` · `GOLDEN_CHECK=0` | `0` · `1` | 마지막 검증에서 이관 동등성 대조 · 그중 LLM 골든 대조만 생략 (아래 절) |
 | `TARGET_USER` | uid 1000 | root 로 실행될 때 배포할 사용자 |

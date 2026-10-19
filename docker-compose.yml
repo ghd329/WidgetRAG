@@ -62,6 +62,9 @@ services:
       - ollama-data:/root/.ollama
     environment:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:4b}
+      # 모델을 VRAM 에 올려 둔 채 유지 — Shell 설치형(env.sh) · LexAI 와 같은 24h. 기본 5분이면 유휴 뒤 첫 질문마다
+      # 적재 시간이 붙고, 대량 임베딩 직후에는 모델 일부가 CPU 로 밀린다 (2026-10-16).
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-24h}
     deploy:
       resources:
         reservations:

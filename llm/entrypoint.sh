@@ -26,6 +26,16 @@ echo "[llm] ollama 준비 완료"
 
 echo "[llm] 모델 확보: ${MODEL_NAME}"
 ollama pull "$MODEL_NAME"
+
+# 모델 예열 — VRAM 에 미리 올려 둔다 (keep_alive 는 compose 의 OLLAMA_KEEP_ALIVE, 기본 24h).
+# 첫 질문에 붙던 적재 시간(실측 32~85초)을 기동 쪽으로 옮기고, 대량 임베딩 뒤에 모델이 CPU 로 밀리지 않게 한다.
+# 이미지에 curl 이 없어 CLI 로 짧은 생성을 한 번 돌린다 — 앱 DB 와 무관한 직접 호출이다.
+echo "[llm] 모델 예열: ${MODEL_NAME}"
+if ollama run "$MODEL_NAME" --keepalive "${OLLAMA_KEEP_ALIVE:-24h}" "ok" >/dev/null 2>&1; then
+    echo "[llm] 모델 예열 완료"
+else
+    echo "[llm] 모델 예열 실패 — 첫 질문에 적재 시간이 붙는다" >&2
+fi
 echo "[llm] 준비 완료 — 요청 대기"
 
 wait "$SERVE_PID"

@@ -45,6 +45,9 @@ OLLAMA_MODEL_HF_FALLBACK="${OLLAMA_MODEL_HF_FALLBACK:-hf.co/unsloth/gemma-3-4b-i
 # (버전이 다르면 temperature 0 · seed 고정이어도 토큰이 갈릴 수 있다). 최신을 쓰려면 OLLAMA_VERSION= (빈 값).
 # ※ 빈 값을 "최신"으로 살리려고 ':-' 가 아니라 '-' 로 기본값을 준다 (':-' 면 빈 값도 0.34.3 으로 바뀐다)
 OLLAMA_VERSION="${OLLAMA_VERSION-0.34.3}"
+# 모델을 VRAM 에 올려 둔 채 유지하는 시간 — Docker Compose llm · LexAI 와 같은 24h. 기본값(5분)이면 유휴 뒤 첫 질문마다
+# 적재 시간(실측 32~85초)이 붙고, 대량 임베딩 직후에는 남은 VRAM 이 모자라 모델 일부가 CPU 로 밀린다 (2026-10-16).
+OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:-24h}"
 
 # --- 관리자 계정 (백엔드 최초 기동 시 생성) ---
 WIDGETRAG_ADMIN_EMAIL="${WIDGETRAG_ADMIN_EMAIL:-admin@widgetrag.com}"

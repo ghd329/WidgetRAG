@@ -191,6 +191,7 @@ bash ../package.sh backup|fetch|restore   # 이관 패키지 도구 (두 형태 
 | `WIDGETRAG_ADMIN_PASSWORD` | (미지정 시 무작위 생성) | 관리자 계정 비밀번호 — 최초 실행에서 자동 생성되어 `scripts/local/.admin-password`(600)에 저장·재사용 |
 | `OLLAMA_MODEL` | `gemma3:4b` | 레지스트리 차단 시 HuggingFace 경유 자동 폴백 |
 | `OLLAMA_VERSION` | `0.34.3` | Ollama 고정 버전 — Docker Compose llm 이미지와 같게 (교차 이관 LLM 응답 일치의 전제). 빈 값이면 최신 |
+| `OLLAMA_KEEP_ALIVE` | `24h` | 모델을 VRAM 에 올려 둔 채 유지하는 시간 (systemd 드롭인으로 적용). 기동 때 모델을 미리 올려 두므로 첫 질문에 적재 시간이 붙지 않고, 대량 업로드 뒤에도 모델이 CPU 로 밀리지 않는다 |
 | `LLM_TEMPERATURE` · `LLM_SEED` | `0.7` · (없음) | 이관 전후 동등성 비교는 `0` · `42` 처럼 결정적 설정으로 |
 | `APP_TZ` | `Asia/Seoul` | 앱의 시각 기준 (`TZ` 로 넘어감) — VM 이미지의 기본 타임존과 무관하게 고정 |
 | `PORT_FRONTEND` | `80` | 5500/5501/3000 은 쓰지 말 것 — `api.js` 가 로컬 개발로 보고 `:8080` 을 직접 부른다 |
