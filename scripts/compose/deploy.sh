@@ -43,6 +43,8 @@
 #     LLM_TEMPERATURE · LLM_SEED   동등성 비교용 결정적 설정 (예: 0 · 42) — .env 에 반영
 #     TARGET_USER     root 로 실행될 때 배포할 사용자 (기본 uid 1000)
 #     NO_DRIVER=1     드라이버 단계 건너뜀 (GPU 이미지 · GPU 없는 검증 VM)
+#     NVIDIA_DRIVER_SERIES  설치할 드라이버 시리즈 (기본 595 → ubuntu-drivers install nvidia:595). 빈 값이면 추천판.
+#                     Shell 설치형 bootstrap.sh 와 같은 기본값 — 소스 · 타겟을 같은 버전으로 맞추기 위함.
 #     NO_START=1      준비만 하고 기동은 안 함
 #     SKIP_VERIFY=1   마지막 검증을 건너뜀
 #     COMPARE=1       마지막 검증에서 이관 동등성까지 대조 (GOLDEN_CHECK=0 이면 LLM 골든 대조 생략)
@@ -63,6 +65,8 @@ RAW_BASE="$REPO_RAW/$BRANCH"
 SELF_URL="$RAW_BASE/scripts/compose/deploy.sh"
 RESUME_UNIT="widgetrag-compose-resume"
 RESUME_ENV="/etc/widgetrag/compose-resume.env"
+# 빈 값(NVIDIA_DRIVER_SERIES=)은 "추천판" 이라는 뜻이라 ':-' 가 아니라 '-' 로 기본값을 준다
+NVIDIA_DRIVER_SERIES="${NVIDIA_DRIVER_SERIES-595}"
 
 # 재실행 · 재부팅 재개 때 넘겨야 하는 값 — 사람이 지정한 것만 넘긴다 (기본값 적용 전에 판단)
 PASS_VARS=(BRANCH REPO_RAW WORK_DIR REGISTRY_PREFIX IMAGE_TAG SNAPSHOT_URI S3_ENDPOINT_URL FORCE_RESTORE NO_DRIVER
@@ -184,7 +188,13 @@ need_driver() {
 if need_driver; then
   log "NVIDIA GPU 감지, 드라이버 미동작 — 설치 후 재부팅·자동 재개"
   apt_get update -qq && apt_get install -y -q ubuntu-drivers-common
-  sudo ubuntu-drivers install
+  if [ -n "$NVIDIA_DRIVER_SERIES" ]; then
+    log "드라이버 시리즈 고정: nvidia:$NVIDIA_DRIVER_SERIES (소스 · 타겟을 같은 버전으로)"
+    sudo ubuntu-drivers install "nvidia:$NVIDIA_DRIVER_SERIES" \
+      || { warn "nvidia:$NVIDIA_DRIVER_SERIES 설치 실패 — ubuntu-drivers 추천판으로 진행"; sudo ubuntu-drivers install; }
+  else
+    sudo ubuntu-drivers install
+  fi
 
   # ★ 재부팅 뒤에는 환경이 새로 시작된다. curl | bash 앞에 붙인 변수(SNAPSHOT_URI 등)는 여기 적어두지
   #   않으면 사라진다. 자격증명이 섞일 수 있어 유닛 파일(644)이 아니라 root 600 환경 파일에 둔다.
@@ -269,7 +279,10 @@ fi
 log "Docker Compose v$CVER"
 
 if nvidia-smi >/dev/null 2>&1; then
-  if ! $DOCKER info 2>/dev/null | grep -qi nvidia; then
+  # 설치 여부는 docker info 의 'nvidia' 문자열이 아니라 패키지 · nvidia-ctk 존재로 본다 — 2026-09-30 T-001:
+  # toolkit 본체만 지워지고 부속 패키지가 남은 상태에서도 docker info 에 nvidia 가 보여 재설치를 건너뛰었다가
+  # 컨테이너가 GPU 를 못 잡았다.
+  if ! command -v nvidia-ctk >/dev/null 2>&1 || ! dpkg -s nvidia-container-toolkit >/dev/null 2>&1; then
     log "nvidia-container-toolkit 설치 (compose의 GPU 예약에 필수)"
     curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
       sudo gpg --dearmor --batch --yes -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg

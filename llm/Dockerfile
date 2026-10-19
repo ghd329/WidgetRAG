@@ -9,7 +9,9 @@
 #
 # GPU 필요: 호스트에 nvidia-container-toolkit이 설치되어 있어야 합니다.
 
-FROM ollama/ollama:latest
+# 버전 고정 — Shell 설치형(env.sh OLLAMA_VERSION=0.34.3)과 같은 Ollama 여야 A↔B 이관 때 LLM 응답이 바이트 단위로
+# 일치한다. latest 로 두면 재빌드 때마다 버전이 바뀐다. 올릴 때는 env.sh 와 함께 올린다.
+FROM ollama/ollama:0.34.3
 
 COPY ./entrypoint.sh /entrypoint.sh
 

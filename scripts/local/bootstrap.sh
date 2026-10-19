@@ -46,6 +46,9 @@
 #     TARGET_USER   root 로 실행될 때 서비스를 돌릴 사용자 (기본 uid 1000)
 #     SNAPSHOT_URI  이관 패키지 위치 (s3:// · gs:// · https:// · 로컬 경로) — scripts/package.sh
 #     NO_DRIVER=1   드라이버 단계 스킵 (GPU 이미지 · GPU 없는 검증 VM)
+#     NVIDIA_DRIVER_SERIES  설치할 드라이버 시리즈 (기본 595 → ubuntu-drivers install nvidia:595). 빈 값이면 추천판.
+#                   같은 이미지 · 같은 명령인데 1차 580 · 2차 595 가 깔린 적이 있어(2026-10-16) 소스 · 타겟을 같은
+#                   버전으로 맞추려고 고정한다. 지정판 설치가 실패하면 추천판으로 진행한다.
 #     NO_START=1    준비만 하고 기동은 안 함 (= --install)
 #     OLLAMA_VERSION Ollama 고정 버전 (기본 0.34.3 — Docker Compose llm 이미지와 같게, env.sh · 빈 값이면 최신)
 #     COMPARE=1     마지막 검증에서 이관 동등성까지 대조 (GOLDEN_CHECK=0 이면 LLM 골든 대조 생략)
@@ -60,6 +63,8 @@ export DEBIAN_FRONTEND=noninteractive
 export HOME="${HOME:-$(getent passwd "$(id -un)" | cut -d: -f6)}"
 
 DEFAULT_BRANCH="feat/20260922-change-sqlite"
+# 빈 값(NVIDIA_DRIVER_SERIES=)은 "추천판" 이라는 뜻이라 ':-' 가 아니라 '-' 로 기본값을 준다
+NVIDIA_DRIVER_SERIES="${NVIDIA_DRIVER_SERIES-595}"
 REPO_URL="${REPO_URL:-https://github.com/ghd329/WidgetRAG.git}"
 BRANCH="${BRANCH:-}"          # 미지정 시: 기존 clone의 현재 브랜치 → 없으면 DEFAULT_BRANCH
 COMMIT="${COMMIT:-}"
@@ -200,7 +205,13 @@ need_driver() {
 if need_driver; then
   log "NVIDIA 드라이버 설치 (GPU 감지됨, 드라이버 미동작) — 설치 후 재부팅·자동 재개"
   apt_get update -qq && apt_get install -y -q ubuntu-drivers-common
-  sudo ubuntu-drivers install
+  if [ -n "$NVIDIA_DRIVER_SERIES" ]; then
+    log "드라이버 시리즈 고정: nvidia:$NVIDIA_DRIVER_SERIES (소스 · 타겟을 같은 버전으로)"
+    sudo ubuntu-drivers install "nvidia:$NVIDIA_DRIVER_SERIES" \
+      || { log "nvidia:$NVIDIA_DRIVER_SERIES 설치 실패 — ubuntu-drivers 추천판으로 진행"; sudo ubuntu-drivers install; }
+  else
+    sudo ubuntu-drivers install
+  fi
 
   # ★ 재부팅 뒤에는 환경이 새로 시작된다. curl | bash 앞에 붙인 변수(SNAPSHOT_URI 등)는
   #   여기 적어두지 않으면 사라진다 (LexAI 에서 ALLOW_EMPTY_INDEX 가 유실된 결함과 같은 계열).

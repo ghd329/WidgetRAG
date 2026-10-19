@@ -40,6 +40,7 @@ curl -fsSL <위 주소> | SNAPSHOT_URI=s3://버킷/widgetrag/20260924-1030 bash
 | `S3_ENDPOINT_URL` | — | S3 호환 스토리지 주소 (NCP 등) |
 | `FORCE_RESTORE=1` | — | DB · 색인이 이미 있어도 패키지로 덮어씀 (기본은 건너뜀) |
 | `NO_DRIVER=1` | — | GPU 이미지를 쓰는 경우 드라이버 설치 생략 |
+| `NVIDIA_DRIVER_SERIES` | `595` | 설치할 드라이버 시리즈 (`ubuntu-drivers install nvidia:595`). 소스 · 타겟을 같은 버전으로 맞추기 위한 고정값 — 빈 값이면 추천판, 지정판 설치 실패 시 추천판으로 진행 |
 | `NO_START=1` | — | 준비만 하고 기동은 하지 않음 (= `--install`) |
 | `TARGET_USER` | uid 1000 | root 로 실행될 때 서비스를 돌릴 사용자 |
 
