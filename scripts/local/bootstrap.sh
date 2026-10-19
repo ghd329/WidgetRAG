@@ -27,6 +27,8 @@
 #          남은 본문을 삼켜 에러 한 줄 없이 끝난다 (LexAI 결함 4). 사본으로 갈아타 stdin 과 끊는다.
 #     2) 자기 설치 — clone된 스크립트를 /usr/local/bin/bootstrap.sh 로 복사
 #     3) NVIDIA 드라이버 — GPU가 있는데 드라이버가 없으면 설치 후 재부팅.
+#        설치 전에 커널 메타 패키지를 올려 드라이버 모듈 · 헤더의 커널 ABI 를 맞추고, 설치 뒤에는 패키지 상태 ·
+#        모듈 파일로 성공을 확인한 뒤에만 재부팅한다 (아래 T-004 참고). 재부팅 뒤에도 안 뜨면 반복하지 않고 멈춘다.
 #        재부팅 전에 systemd oneshot(widgetrag-bootstrap-resume)을 등록해 같은 단계부터 자동 재개.
 #        curl | bash 앞에 붙인 환경변수(SNAPSHOT_URI 등)는 재부팅 뒤에 사라지므로 함께 넘긴다.
 #        재개 뒤에는 유닛을 disable 만 한다 — 파일 삭제는 5) 에서 (아래 T-002 참고).
@@ -202,16 +204,73 @@ need_driver() {
   lspci 2>/dev/null | grep -qi nvidia              # NVIDIA GPU가 실재할 때만
 }
 
+next_kernel() {  # 다음 부팅에 올라올 커널 ABI — /boot/vmlinuz 가 가리키는 것, 없으면 설치된 것 중 가장 높은 판
+  local k
+  k="$(readlink -f /boot/vmlinuz 2>/dev/null || true)"; k="${k##*/vmlinuz-}"
+  if [ -n "$k" ] && [ -d "/lib/modules/$k" ]; then echo "$k"; else ls -1 /lib/modules 2>/dev/null | sort -V | tail -1; fi
+}
+
+install_kernel_meta() {  # 커널 메타 패키지(이미지 · 헤더 · 모듈)를 저장소의 최신 ABI 로 — 드라이버 모듈과 헤더를 같은 ABI 로 맞춘다
+  # ★ 2026-10-19 T-004: ubuntu-drivers 가 고르는 미리 컴파일된 모듈(linux-modules-nvidia-<시리즈>-<flavour>)은
+  #   저장소의 최신 커널 ABI 용이라 새 커널 이미지는 함께 끌어오지만, 같은 ABI 의 헤더는 의존성에 없다.
+  #   구성 단계에서 그 헤더의 objtool · module.lds 로 .ko 를 링크하므로 헤더가 없으면 링크가 깨지고
+  #   nvidia-driver 가 미구성(iU)으로 남는다. 이미지의 헤더가 한 판 뒤처진 상태(1013 헤더 · 1014 모듈)에서 났다.
+  local flavour meta
+  flavour="$(uname -r | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+-//')"   # 7.0.0-1013-aws → aws
+  meta="linux-$flavour"
+  if apt-cache policy "$meta" 2>/dev/null | grep -q 'Candidate: [0-9]'; then
+    log "커널 메타 패키지 갱신: $meta (드라이버 모듈 · 헤더를 같은 커널 ABI 로)"
+    apt_get install -y -q "$meta"
+  else
+    log "커널 메타 패키지 $meta 를 찾지 못함 — 현재 커널의 헤더만 설치"
+    apt_get install -y -q "linux-headers-$(uname -r)"
+  fi
+}
+
+driver_ready() {  # 드라이버 패키지가 전부 구성(ii)됐고, 다음 부팅 커널용 nvidia 모듈이 실재하는지
+  # ubuntu-drivers 는 apt 가 실패해도 0 으로 끝난다 — 종료 코드가 아니라 패키지 상태 · 모듈 파일로 판정한다
+  local half k
+  half="$(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' 'nvidia-*' 'linux-modules-nvidia-*' 2>/dev/null | grep -E '^i[^i]' || true)"
+  if [ -n "$half" ]; then
+    log "미구성 드라이버 패키지:"; printf '%s\n' "$half" | sed 's/^/    /'
+    return 1
+  fi
+  dpkg-query -W -f='${db:Status-Abbrev}\n' 'nvidia-driver-*' 2>/dev/null | grep -q '^ii' \
+    || { log "nvidia-driver-* 패키지가 설치되지 않음"; return 1; }
+  k="$(next_kernel)"
+  modinfo -k "$k" nvidia >/dev/null 2>&1 || find "/lib/modules/$k" -name 'nvidia.ko*' 2>/dev/null | grep -q . \
+    || { log "커널 $k 용 nvidia 모듈이 없음"; return 1; }
+}
+
+repair_driver_packages() {  # 미구성 패키지가 남았을 때 한 번 손본다 — 모듈이 노리는 커널의 헤더를 넣고 다시 구성
+  local k; k="$(next_kernel)"
+  log "드라이버 패키지 재구성 시도: linux-headers-$k 설치 후 dpkg --configure -a"
+  apt_get install -y -q "linux-headers-$k" || true
+  sudo dpkg --configure -a || true
+}
+
+# 재부팅 뒤 재개인데 드라이버가 안 뜸 — 모듈 적재를 한 번 시도하고, 그래도 안 되면 다시 설치 · 재부팅으로 돌지 않는다
+if need_driver && [ "${WIDGETRAG_RESUME:-0}" = 1 ]; then
+  sudo modprobe nvidia >/dev/null 2>&1 || true
+  nvidia-smi >/dev/null 2>&1 \
+    || die "재부팅 후에도 NVIDIA 드라이버가 동작하지 않음 — 재부팅을 반복하지 않고 멈춤 (확인: nvidia-smi · dmesg | grep -i nvidia · dpkg -l | grep -E '^i[^i]')"
+fi
+
 if need_driver; then
   log "NVIDIA 드라이버 설치 (GPU 감지됨, 드라이버 미동작) — 설치 후 재부팅·자동 재개"
-  apt_get update -qq && apt_get install -y -q ubuntu-drivers-common
+  apt_get update -qq
+  install_kernel_meta
+  apt_get install -y -q ubuntu-drivers-common
   if [ -n "$NVIDIA_DRIVER_SERIES" ]; then
     log "드라이버 시리즈 고정: nvidia:$NVIDIA_DRIVER_SERIES (소스 · 타겟을 같은 버전으로)"
-    sudo ubuntu-drivers install "nvidia:$NVIDIA_DRIVER_SERIES" \
-      || { log "nvidia:$NVIDIA_DRIVER_SERIES 설치 실패 — ubuntu-drivers 추천판으로 진행"; sudo ubuntu-drivers install; }
+    sudo ubuntu-drivers install "nvidia:$NVIDIA_DRIVER_SERIES" || true
+    driver_ready || repair_driver_packages
+    driver_ready || { log "nvidia:$NVIDIA_DRIVER_SERIES 설치가 완료되지 않음 — ubuntu-drivers 추천판으로 진행"; sudo ubuntu-drivers install || true; }
   else
-    sudo ubuntu-drivers install
+    sudo ubuntu-drivers install || true
   fi
+  driver_ready || repair_driver_packages
+  driver_ready || die "NVIDIA 드라이버 패키지가 구성되지 않음 — 재부팅하지 않고 멈춤 (위 미구성 패키지 확인 → sudo dpkg --configure -a 뒤 다시 실행)"
 
   # ★ 재부팅 뒤에는 환경이 새로 시작된다. curl | bash 앞에 붙인 변수(SNAPSHOT_URI 등)는
   #   여기 적어두지 않으면 사라진다 (LexAI 에서 ALLOW_EMPTY_INDEX 가 유실된 결함과 같은 계열).

@@ -53,8 +53,9 @@ snapshots/                    OpenSearch path.repo(/mnt/snapshots) — 색인 �
 
 1. root 로 실행되면 uid 1000 사용자로, 파이프로 들어오면 디스크 사본으로 다시 실행
 2. 기본 도구 (curl · sqlite3 · pigz …)
-3. NVIDIA 드라이버 — 없으면 설치 후 **스스로 재부팅하고, 부팅이 끝나면 같은 지점부터 자동으로 이어서 진행**
-   (`sudo journalctl -u widgetrag-compose-resume -f`)
+3. NVIDIA 드라이버 — 없으면 커널 메타 패키지를 먼저 올려 드라이버 모듈 · 헤더의 커널 ABI 를 맞추고 설치한다.
+   패키지 상태 · 모듈 파일로 성공을 확인한 뒤에만 **스스로 재부팅하고, 부팅이 끝나면 같은 지점부터 자동으로 이어서 진행**
+   (미구성이면 재부팅하지 않고 멈춘다 · 진행 확인: `sudo journalctl -u widgetrag-compose-resume -f`)
 4. Docker 엔진 + Compose v2.24+ + nvidia-container-toolkit → **매번 컨테이너를 하나 띄워 GPU 통과 확인**
 5. 배포 파일 수신 · `.env` 생성
 6. 이미지 pull → `SNAPSHOT_URI` 가 있으면 패키지 수신(체크섬 확인)
@@ -88,7 +89,7 @@ toolkit 이 없거나 설정이 틀리면 **에러 없이 CPU 로 폴백한다.*
 | `LLM_TEMPERATURE` · `LLM_SEED` | `0.7` · — | 동등성 비교용 결정적 설정 — 지정하면 `.env` 에 반영 |
 | `OLLAMA_KEEP_ALIVE` | `24h` | llm 컨테이너가 모델을 VRAM 에 올려 둔 채 유지하는 시간 (`.env` → compose 환경). Shell 설치형과 같은 값 |
 | `NO_DRIVER=1` · `NO_START=1` · `SKIP_VERIFY=1` | — | 드라이버 생략 · 준비만 · 검증 생략 |
-| `NVIDIA_DRIVER_SERIES` | `595` | 설치할 드라이버 시리즈 (`ubuntu-drivers install nvidia:595`). 빈 값이면 추천판 — Shell 설치형과 같은 기본값 |
+| `NVIDIA_DRIVER_SERIES` | `595` | 설치할 드라이버 시리즈 (`ubuntu-drivers install nvidia:595`). 빈 값이면 추천판, 지정판이 구성되지 않으면 추천판으로 진행 — Shell 설치형과 같은 기본값 · 같은 판정(패키지 상태 · 모듈 파일) |
 | `COMPARE=1` · `GOLDEN_CHECK=0` | `0` · `1` | 마지막 검증에서 이관 동등성 대조 · 그중 LLM 골든 대조만 생략 (아래 절) |
 | `TARGET_USER` | uid 1000 | root 로 실행될 때 배포할 사용자 |
 

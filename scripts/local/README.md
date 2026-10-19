@@ -24,6 +24,8 @@ curl -fsSL <위 주소> | SNAPSHOT_URI=s3://버킷/widgetrag/20260924-1030 bash
 ```
 
 - 드라이버가 없는 인스턴스면 설치 후 **스스로 재부팅하고, 부팅이 끝나면 같은 지점부터 자동으로 이어서 진행한다**.
+  설치 전에 커널 메타 패키지를 올려 드라이버 모듈 · 헤더의 커널 ABI 를 맞추고, 설치 뒤에는 패키지 상태 · 모듈 파일로
+  성공을 확인한 뒤에만 재부팅한다 (미구성이면 재부팅하지 않고 멈춘다 — 저장소에 새 커널이 올라와 이미지의 헤더가 뒤처진 경우).
   진행 상황은 `sudo journalctl -u widgetrag-bootstrap-resume -f`.
   `curl | bash` 앞에 붙인 환경변수(`SNAPSHOT_URI` 등)도 재부팅 뒤까지 넘어간다 (root 600 환경 파일).
 - **root 로 실행되면**(CB-Tumblebug `postCommands`) uid 1000 사용자로 저장소를 받고 그 사용자로 이어서 실행한다 —
@@ -40,7 +42,7 @@ curl -fsSL <위 주소> | SNAPSHOT_URI=s3://버킷/widgetrag/20260924-1030 bash
 | `S3_ENDPOINT_URL` | — | S3 호환 스토리지 주소 (NCP 등) |
 | `FORCE_RESTORE=1` | — | DB · 색인이 이미 있어도 패키지로 덮어씀 (기본은 건너뜀) |
 | `NO_DRIVER=1` | — | GPU 이미지를 쓰는 경우 드라이버 설치 생략 |
-| `NVIDIA_DRIVER_SERIES` | `595` | 설치할 드라이버 시리즈 (`ubuntu-drivers install nvidia:595`). 소스 · 타겟을 같은 버전으로 맞추기 위한 고정값 — 빈 값이면 추천판, 지정판 설치 실패 시 추천판으로 진행 |
+| `NVIDIA_DRIVER_SERIES` | `595` | 설치할 드라이버 시리즈 (`ubuntu-drivers install nvidia:595`). 소스 · 타겟을 같은 버전으로 맞추기 위한 고정값 — 빈 값이면 추천판, 지정판이 구성되지 않으면 추천판으로 진행. 성공 여부는 ubuntu-drivers 의 종료 코드가 아니라 패키지 상태(`dpkg`) · 모듈 파일로 판정한다 |
 | `NO_START=1` | — | 준비만 하고 기동은 하지 않음 (= `--install`) |
 | `TARGET_USER` | uid 1000 | root 로 실행될 때 서비스를 돌릴 사용자 |
 
