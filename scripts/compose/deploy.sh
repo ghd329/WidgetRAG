@@ -201,7 +201,10 @@ install_kernel_meta() {  # 커널 메타 패키지(이미지 · 헤더 · 모듈
   local flavour meta
   flavour="$(uname -r | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+-//')"   # 7.0.0-1013-aws → aws
   meta="linux-$flavour"
-  if apt-cache policy "$meta" 2>/dev/null | grep -q 'Candidate: [0-9]'; then
+  # 판정은 출력을 변수에 담아서 한다 — 파이프에 grep -q 를 걸면 grep 이 먼저 끝나면서 apt-cache 가 SIGPIPE(141)로
+  # 죽고, pipefail 아래서 조건이 거짓이 된다 (실 VM 에서 linux-aws 를 '찾지 못함' 으로 빠진 원인)
+  local policy; policy="$(apt-cache policy "$meta" 2>/dev/null || true)"
+  if grep -q 'Candidate: [0-9]' <<<"$policy"; then
     log "커널 메타 패키지 갱신: $meta (드라이버 모듈 · 헤더를 같은 커널 ABI 로)"
     apt_get install -y -q "$meta"
   else
@@ -218,10 +221,10 @@ driver_ready() {  # 드라이버 패키지가 전부 구성(ii)됐고, 다음 �
     log "미구성 드라이버 패키지:"; printf '%s\n' "$half" | sed 's/^/    /'
     return 1
   fi
-  dpkg-query -W -f='${db:Status-Abbrev}\n' 'nvidia-driver-*' 2>/dev/null | grep -q '^ii' \
-    || { log "nvidia-driver-* 패키지가 설치되지 않음"; return 1; }
+  local drivers; drivers="$(dpkg-query -W -f='${db:Status-Abbrev}\n' 'nvidia-driver-*' 2>/dev/null || true)"
+  grep -q '^ii' <<<"$drivers" || { log "nvidia-driver-* 패키지가 설치되지 않음"; return 1; }
   k="$(next_kernel)"
-  modinfo -k "$k" nvidia >/dev/null 2>&1 || find "/lib/modules/$k" -name 'nvidia.ko*' 2>/dev/null | grep -q . \
+  modinfo -k "$k" nvidia >/dev/null 2>&1 || [ -n "$(find "/lib/modules/$k" -name 'nvidia.ko*' -print -quit 2>/dev/null)" ] \
     || { log "커널 $k 용 nvidia 모듈이 없음"; return 1; }
 }
 
@@ -232,11 +235,19 @@ repair_driver_packages() {  # 미구성 패키지가 남았을 때 한 번 손�
   sudo dpkg --configure -a || true
 }
 
-# 재부팅 뒤 재개인데 드라이버가 안 뜸 — 모듈 적재를 한 번 시도하고, 그래도 안 되면 다시 설치 · 재부팅으로 돌지 않는다
+# 재부팅 뒤 재개 — 부팅 직후에는 커널 모듈이 올라와도 /dev/nvidia* 장치 노드가 늦게 생긴다 (udev · nvidia-persistenced,
+# 실측 부팅 +20초. 재개 유닛은 network-online 직후 +6초에 돈다). 일반 사용자의 nvidia-smi 는 노드가 없으면 실패하므로
+# 기다리며 재시도하고, 중간에 root 로 한 번 불러 노드를 만들어 준다. 그래도 안 뜨면 다시 설치 · 재부팅으로 돌지 않고 멈춘다.
 if need_driver && [ "${WIDGETRAG_RESUME:-0}" = 1 ]; then
-  sudo modprobe nvidia >/dev/null 2>&1 || true
+  log "재부팅 후 재개 — 드라이버가 준비될 때까지 대기 (최대 120초)"
+  for i in $(seq 1 40); do
+    nvidia-smi >/dev/null 2>&1 && break
+    if [ "$i" -eq 5 ]; then sudo modprobe nvidia >/dev/null 2>&1 || true; sudo nvidia-smi >/dev/null 2>&1 || true; fi
+    sleep 3
+  done
   nvidia-smi >/dev/null 2>&1 \
     || die "재부팅 후에도 NVIDIA 드라이버가 동작하지 않음 — 재부팅을 반복하지 않고 멈춤 (확인: nvidia-smi · dmesg | grep -i nvidia · dpkg -l | grep -E '^i[^i]')"
+  log "드라이버 준비 확인 (약 $(( (i-1)*3 ))초 대기)"
 fi
 
 if need_driver; then
