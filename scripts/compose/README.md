@@ -22,7 +22,7 @@ curl -fsSL <위 주소> | SNAPSHOT_URI=s3://버킷/widgetrag/20260924-1030 bash
 다른 CSP 의 레지스트리에서 받으려면 접두사만 바꾼다.
 
 ```bash
-curl -fsSL <위 주소> | REGISTRY_PREFIX=asia-northeast3-docker.pkg.dev/<프로젝트>/<저장소> IMAGE_TAG=v0.3.0 bash
+curl -fsSL <위 주소> | REGISTRY_PREFIX=asia-northeast3-docker.pkg.dev/<프로젝트>/<저장소> IMAGE_TAG=v0.3.1 bash
 ```
 
 ## Shell 설치형과 갈리는 지점
@@ -82,7 +82,7 @@ toolkit 이 없거나 설정이 틀리면 **에러 없이 CPU 로 폴백한다.*
 | `REPO_RAW` | `https://raw.githubusercontent.com/ghd329/WidgetRAG` | 포크 · 사내 미러 |
 | `WORK_DIR` | `~/widgetrag-deploy` | 배포 디렉토리 (사본을 직접 실행하면 그 디렉토리) |
 | `REGISTRY_PREFIX` | `yjp8842` | Docker Hub 계정 또는 레지스트리 주소 (ECR · GAR · NCR) |
-| `IMAGE_TAG` | `v0.3.0` | **고정 태그를 쓴다** — `latest` 는 어느 이미지가 떴는지 추적이 안 된다 |
+| `IMAGE_TAG` | `v0.3.1` | **고정 태그를 쓴다** — `latest` 는 어느 이미지가 떴는지 추적이 안 된다. 태그 이력은 `docker-compose.images.yml` 머리 주석 |
 | `SNAPSHOT_URI` | — | 이관 패키지 위치 (`s3://` · `gs://` · `https://` · 로컬 경로) |
 | `S3_ENDPOINT_URL` | — | S3 호환 스토리지 주소 (NCP 등) |
 | `FORCE_RESTORE=1` | — | DB · 색인이 이미 있어도 패키지로 덮어씀 |
@@ -133,10 +133,10 @@ curl -fsSL <deploy 주소> | SNAPSHOT_URI=s3://버킷/widgetrag/<시각> LLM_TEM
   DB 테이블별 행 해시(`chat_log` 는 이관 시점까지, 업로드 경로 접두사는 정규화) · 색인 문서 해시 · 업로드 파일.
 - **테스트2** (LLM 완전 일치): 골든 질문마다 **답변 문자열 바이트 단위 동일 + 추천 상품 목록 · 순서 동일 + fallback 아님**.
   전제는 같은 **Ollama 버전 · 모델 digest · GPU** — temperature · seed · 모델이 다르면 FAIL, 환경 차이는 WARN 으로 원인을 짚는다.
-- 이 형태의 Ollama 버전은 llm 이미지 태그가 정한다 (`llm-v0.3.0` = 0.34.3). Shell 설치형(A)도 `OLLAMA_VERSION=0.34.3` 으로
+- 이 형태의 Ollama 버전은 llm 이미지 태그가 정한다 (`llm-v0.3.1` = 0.34.3). Shell 설치형(A)도 `OLLAMA_VERSION=0.34.3` 으로
   설치해 맞춘다 (`scripts/local/env.sh` 기본값) — A↔B 교차 이관에서 답변이 갈리지 않게 하는 전제다.
-  단 `llm/Dockerfile` 은 `ollama/ollama:latest` 를 베이스로 하므로 **llm 이미지를 다시 빌드(새 `IMAGE_TAG`)하면 버전이 바뀔 수 있다** —
-  그때는 `sudo docker compose exec llm ollama -v` 로 확인해 A 의 `OLLAMA_VERSION` 을 같은 값으로 맞춘다.
+  `llm/Dockerfile` 은 `ollama/ollama:0.34.3` 으로 베이스를 고정해 두어 다시 빌드해도 버전이 바뀌지 않는다.
+  올릴 때는 Dockerfile 과 `env.sh` 의 `OLLAMA_VERSION` 을 함께 올리고, 기동 뒤 `sudo docker compose exec llm ollama -v` 로 확인한다.
 - `GOLDEN_CHECK=0` 이면 테스트2 만 건너뛴다 (SKIP).
 - `package.sh` 는 같은 디렉토리의 `migcheck.py`(해시 · 판정 계산)를 쓴다 — `backup` 도 이것이 없으면 멈춘다.
   예전에 배포한 디렉토리라면 `bash deploy.sh` 를 한 번 다시 실행해 함께 받는다.

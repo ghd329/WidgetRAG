@@ -36,7 +36,7 @@
 #     REGISTRY_PREFIX 이미지 레지스트리 주소/계정 (기본 yjp8842 = Docker Hub)
 #                     ECR: <계정ID>.dkr.ecr.<리전>.amazonaws.com · GAR: <리전>-docker.pkg.dev/<프로젝트>/<저장소>
 #                     NCR: <레지스트리>.kr.ncr.ntruss.com — 프라이빗 레지스트리는 docker login 선행
-#     IMAGE_TAG       이미지 태그 (기본 v0.3.0 — FK 강제까지 반영, 고정 태그만·latest 금지)
+#     IMAGE_TAG       이미지 태그 (기본 v0.3.1 — llm 에 Ollama 0.34.3 고정 · 모델 예열 반영, 고정 태그만·latest 금지)
 #     BRANCH          배포 파일을 받아올 브랜치/태그 (기본 feat/20260922-change-sqlite)
 #     REPO_RAW        배포 파일의 raw 주소 (기본 https://raw.githubusercontent.com/ghd329/WidgetRAG — 포크·미러용)
 #     WORK_DIR        배포 디렉토리 (기본 ~/widgetrag-deploy)
@@ -166,7 +166,7 @@ LLM_TEMPERATURE_ARG="${LLM_TEMPERATURE:-}"
 LLM_SEED_ARG="${LLM_SEED:-}"
 mapfile -d '' RESUME_ARGS < <(pass_env)       # 재부팅 재개에 넘길 값 (기본값 적용 전)
 REGISTRY_PREFIX="${REGISTRY_PREFIX:-yjp8842}"
-IMAGE_TAG="${IMAGE_TAG:-v0.3.0}"
+IMAGE_TAG="${IMAGE_TAG:-v0.3.1}"
 PACKAGE_DIR="$WORK_DIR/package"
 TOTAL_START=$(date +%s)
 

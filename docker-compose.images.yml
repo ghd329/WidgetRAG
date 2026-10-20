@@ -27,19 +27,21 @@
 #     v0.1.0 = PostgreSQL·EXAONE 구성 (구버전 — 현재 compose와 비호환)
 #     v0.2.0 = SQLite·Gemma·비민감화 반영 (feat/20260922-change-sqlite)
 #     v0.3.0 = FK 강제(foreign_keys=true) 반영 (2026-09-23 push·pull 재기동 검증 완료)
-#   caddy 제거는 compose 정의만 바뀐 것이라 이미지는 v0.3.0 그대로 쓴다
+#     v0.3.1 = llm 만 다시 빌드 — Ollama 0.34.3 고정 베이스 · 기동 때 모델 예열(entrypoint).
+#              backend · frontend · ai-server 는 코드 변경이 없어 v0.3.0 매니페스트를 그대로 복사 (digest 동일)
+#   caddy 제거는 compose 정의만 바뀐 것이라 이미지는 그대로 쓴다
 #   (frontend 이미지의 nginx 가 이미 /api 를 프록시한다).
 # ===========================================================
 services:
   backend:
-    image: ${REGISTRY_PREFIX:-yjp8842}/widgetrag:backend-${IMAGE_TAG:-v0.3.0}
+    image: ${REGISTRY_PREFIX:-yjp8842}/widgetrag:backend-${IMAGE_TAG:-v0.3.1}
     build: !reset null
   ai-server:
-    image: ${REGISTRY_PREFIX:-yjp8842}/widgetrag:ai-server-${IMAGE_TAG:-v0.3.0}
+    image: ${REGISTRY_PREFIX:-yjp8842}/widgetrag:ai-server-${IMAGE_TAG:-v0.3.1}
     build: !reset null
   frontend:
-    image: ${REGISTRY_PREFIX:-yjp8842}/widgetrag:frontend-${IMAGE_TAG:-v0.3.0}
+    image: ${REGISTRY_PREFIX:-yjp8842}/widgetrag:frontend-${IMAGE_TAG:-v0.3.1}
     build: !reset null
   llm:
-    image: ${REGISTRY_PREFIX:-yjp8842}/widgetrag:llm-${IMAGE_TAG:-v0.3.0}
+    image: ${REGISTRY_PREFIX:-yjp8842}/widgetrag:llm-${IMAGE_TAG:-v0.3.1}
     build: !reset null
