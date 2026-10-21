@@ -29,16 +29,38 @@ if [ ! -x "$VENV_DIR/bin/python" ]; then
   log "venv 생성 ($PYTHON_BIN)"
   "$PYTHON_BIN" -m venv "$VENV_DIR"
 fi
-log "AI 서버 의존성 설치 (변경 없으면 빠르게 통과)"
-"$VENV_DIR/bin/pip" install -q -r "$AI_DIR/requirements_exaone.txt"
+# 패키지(실행 파일 층)로 온 트리에는 소스 venv 의 잠금 목록이 있다 — 그 버전 그대로 설치해 소스와 같은 venv 를 만든다.
+# requirements_exaone.txt 는 버전이 비어 있어 시점마다 다른 torch 가 올 수 있다 — 동등성이 갈리는 지점이라 잠금이 우선이다.
+PIP_OPTS=()
+if [ -f "$AI_DIR/requirements-lock.txt" ]; then
+  REQ="$AI_DIR/requirements-lock.txt"
+  if [ -f "$PACKAGE_DIR/app-wheels.tar.gz" ]; then      # 폐쇄망용 wheel 동봉 (WITH_WHEELS=1) — 한 번 풀어 두고 PyPI 없이 설치
+    if [ ! -d "$PACKAGE_DIR/wheels" ]; then
+      log "동봉 wheel 전개: $PACKAGE_DIR/wheels"
+      mkdir -p "$PACKAGE_DIR/wheels" && tar -xf "$PACKAGE_DIR/app-wheels.tar.gz" -C "$PACKAGE_DIR/wheels"
+    fi
+    PIP_OPTS=(--no-index --find-links "$PACKAGE_DIR/wheels")
+  fi
+  log "AI 서버 의존성 설치 — 소스의 잠금 목록 그대로 ($(grep -c . "$REQ" || true)줄${PIP_OPTS:+ · 동봉 wheel})"
+else
+  REQ="$AI_DIR/requirements_exaone.txt"
+  log "AI 서버 의존성 설치 (변경 없으면 빠르게 통과)"
+fi
+"$VENV_DIR/bin/pip" install -q "${PIP_OPTS[@]}" -r "$REQ"
 
 # ---------- 공통 준비 2. 백엔드 jar ----------
 resolve_java
 JAR="$(ls "$BACKEND_DIR"/target/backend-*.jar 2>/dev/null | head -1 || true)"
 if [ -z "$JAR" ] || [ "$REBUILD" = "--rebuild" ]; then
-  log "백엔드 빌드 (./mvnw package -DskipTests) — 최초 수 분 소요"
-  ( cd "$BACKEND_DIR" && chmod +x mvnw && ./mvnw -q package -DskipTests )
-  JAR="$(ls "$BACKEND_DIR"/target/backend-*.jar | head -1)"
+  if [ "$CODE_SOURCE" = package ]; then
+    # 패키지 트리에는 소스 · mvnw 가 없다 — 소스에서 빌드된 jar 를 그대로 쓴다 (그 sha 가 compare 의 app:jar 행)
+    [ -n "$JAR" ] || die "패키지 트리에 backend jar 가 없습니다 ($BACKEND_DIR/target) — 기동된 소스에서 package.sh backup 을 다시 뜨세요"
+    warn "--rebuild 는 패키지 모드에서 무시 — 소스 산출물을 그대로 사용 ($(basename "$JAR"))"
+  else
+    log "백엔드 빌드 (./mvnw package -DskipTests) — 최초 수 분 소요"
+    ( cd "$BACKEND_DIR" && chmod +x mvnw && ./mvnw -q package -DskipTests )
+    JAR="$(ls "$BACKEND_DIR"/target/backend-*.jar | head -1)"
+  fi
 fi
 
 # =========================================================

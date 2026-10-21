@@ -31,6 +31,16 @@ PORT_AI="${PORT_AI:-8000}"
 PORT_OLLAMA="${PORT_OLLAMA:-11434}"
 PORT_OPENSEARCH="${PORT_OPENSEARCH:-9200}"
 
+# --- 코드 출처 · 이관 패키지 기본값 ---
+# 이관 패키지의 실행 파일 층(app-tree.tar.gz)으로 전개된 트리는 루트에 app-tree.env 가 있다 — 그러면 소스에서 빌드된
+# 산출물(jar · 잠금 목록)을 그대로 쓰고 Maven · pip 해석을 하지 않는다. 환경변수가 아니라 파일로 판별해서
+# ./start.sh · ./40-start-apps.sh 를 따로 다시 돌려도 유지된다. (bootstrap.sh 의 CODE_SOURCE=auto|package|git 과 짝)
+if [ -f "$PROJECT_ROOT/app-tree.env" ]; then CODE_SOURCE=package; else CODE_SOURCE="${CODE_SOURCE:-git}"; fi
+PACKAGE_DIR="${PACKAGE_DIR:-$HOME/widgetrag-package}"   # 받은 이관 패키지 (35-restore-package.sh 가 복원, 아래 기본값의 출처)
+pkg_default() {  # pkg_default <키> — 패키지 package.env 의 값 (없으면 빈 값). 소스의 서비스 환경변수를 타겟의 기본값으로 — "환경변수 이전"
+  { grep "^$1=" "$PACKAGE_DIR/package.env" 2>/dev/null | tail -1 | cut -d= -f2- ; } || true
+}
+
 # --- OpenSearch (apt 설치, 버전 고정 — 이관 시 소스·타겟 버전 일치 필수) ---
 #   ※ 관계형 DB는 SQLite 임베디드(백엔드 프로세스 내장)라 인프라 기동 대상이 아님
 OPENSEARCH_VERSION="2.18.0"
@@ -38,6 +48,8 @@ OPENSEARCH_VERSION="2.18.0"
 # --- LLM 모델 ---
 # 기본 Gemma 3 4B (약 3.3GB) — Gemma 이용약관은 산출물 오픈소스 리스트(OLA)에 표기.
 # EXAONE은 연구용 라이선스 제약이 있어 기본값에서 제외 (필요 시 OLLAMA_MODEL로 지정).
+# 명시 지정 > 이관 패키지의 소스 값(APP_OLLAMA_MODEL) > 기본값
+OLLAMA_MODEL="${OLLAMA_MODEL:-$(pkg_default APP_OLLAMA_MODEL)}"
 OLLAMA_MODEL="${OLLAMA_MODEL:-gemma3:4b}"
 # 사내망에서 Ollama 레지스트리 대용량 블롭이 차단될 때의 우회 경로 (HuggingFace GGUF)
 OLLAMA_MODEL_HF_FALLBACK="${OLLAMA_MODEL_HF_FALLBACK:-hf.co/unsloth/gemma-3-4b-it-GGUF:Q4_K_M}"
@@ -73,13 +85,16 @@ PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-http://localhost:8081}"
 # --- 타임존 ---
 # 엔티티 시각(LocalDateTime.now)은 JVM 기본 타임존 = 프로세스의 TZ 를 따른다. VM 이미지마다
 # 기본값이 달라(UTC/KST) 명시하지 않으면 이관 전후로 기록 시각이 9시간 갈린다 (LexAI 와 같은 기준).
+APP_TZ="${APP_TZ:-$(pkg_default APP_TZ)}"
 APP_TZ="${APP_TZ:-Asia/Seoul}"
 
 # --- LLM 생성 파라미터 ---
 # 동등성 검증(이관 전후 추론 결과 일치 비교)은 결정적 설정이 필요:
 #   LLM_TEMPERATURE=0 LLM_SEED=42 ./40-start-apps.sh
+# 명시 지정 > 이관 패키지의 소스 값 > 기본값 — 소스가 결정적 설정으로 떴으면 타겟도 같은 값으로 뜬다
+LLM_TEMPERATURE="${LLM_TEMPERATURE:-$(pkg_default APP_LLM_TEMPERATURE)}"
 LLM_TEMPERATURE="${LLM_TEMPERATURE:-0.7}"
-LLM_SEED="${LLM_SEED:-}"          # 비우면 미지정(비결정적)
+LLM_SEED="${LLM_SEED:-$(pkg_default APP_LLM_SEED)}"   # 비우면 미지정(비결정적)
 
 # --- systemd (Linux 앱 계층) ---
 # Linux에서는 앱 3종을 systemd 유닛으로 기동한다 — 마이그레이션 도구가 식별할
@@ -95,7 +110,7 @@ APP_CONFIG_FILE="$APP_CONFIG_DIR/application-local.yaml"
 # --- 경로 ---
 STORAGE_DIR="${STORAGE_DIR:-$HOME/widgetrag-data}"   # CSV 업로드 파일 저장 경로
 SQLITE_DB_FILE="${SQLITE_DB_FILE:-$STORAGE_DIR/widgetrag.db}"   # SQLite DB 파일 (업로드 경로와 같은 곳에 두어 함께 이관)
-PACKAGE_DIR="${PACKAGE_DIR:-$HOME/widgetrag-package}"           # 받은 이관 패키지 (SNAPSHOT_URI → 35-restore-package.sh)
+# PACKAGE_DIR 은 위(코드 출처 · 이관 패키지 기본값)에서 정했다 — 모델 · LLM 기본값보다 먼저 필요해서
 PACKAGE_SH="$PROJECT_ROOT/scripts/package.sh"                    # 이관 패키지 도구 (두 형태 공용)
 FRONTEND_NGINX_CONF="/etc/widgetrag/frontend-nginx.conf"         # frontend/nginx.conf 에서 생성 (40-start-apps.sh)
 LOG_DIR="$SCRIPT_DIR/logs"

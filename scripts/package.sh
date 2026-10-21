@@ -31,6 +31,14 @@
 #     baseline-rag.tsv             색인 내용 해시 (인덱스별 + 매핑 · 설정) — baseline-rag-docs.tsv 는 문서별 해시
 #     fingerprint-source.txt       소스 환경 지문 (Ollama · 모델 digest · GPU · 생성 파라미터 — 화이트리스트 키만)
 #     golden.json                  골든 질문 · 응답 (GOLDEN=1) — 타겟 LLM 응답 완전 일치 비교(테스트2)의 기준
+#   실행 파일 층 (소스가 Shell 설치형일 때 — 계획서의 "실행 파일 · 스크립트 · 의존 패키지 · 환경변수 이전")
+#     app-tree.tar.gz              scripts/ · backend/target/backend-*.jar · frontend/ · ai-server/(소스 + requirements-lock.txt)
+#                                  + 루트의 app-tree.env(커밋 · 생성 시각) · app-manifest.tsv(파일별 바이트 · sha256).
+#                                  타겟 bootstrap.sh 가 git clone 대신 이 트리를 풀어 빌드 없이 기동한다 (CODE_SOURCE=auto)
+#     app-wheels.tar.gz            WITH_WHEELS=1 일 때만 — 잠금 목록의 wheel (폐쇄망용, 수 GB)
+#     baseline-app.tsv             실행 파일 기준선 (jar · 트리 · pip 잠금 · 설치된 pip 목록 · 커밋) — 타겟 T1-3 app: 완전 일치
+#     baseline-env.tsv             실행 환경 기준선 (java · python · nginx · OpenSearch · Ollama · 드라이버 · GPU · 모델) — T1-3 runtime: WARN
+#     venv · systemd 유닛 · nginx 설정 · 설정 파일은 넣지 않는다 — 경로 · 사용자가 달라 타겟이 잠금 목록 · 생성기로 다시 만든다
 #   해시 · 판정 계산은 같은 디렉토리의 migcheck.py 가 한다 (compose 는 deploy.sh 가 함께 받는다).
 #   포함하지 않는 것: LLM·임베딩 모델(타겟에서 다시 받음), 관리자 비밀번호·.env(비밀값)
 #
@@ -83,6 +91,12 @@ IMPORT_REPO="widgetrag-import"     # 타겟이 패키지를 풀어 읽는 저장
 KEEP_SNAPSHOTS="${KEEP_SNAPSHOTS:-2}"
 PKG_FILES=(checksums.sha256 package.env doccount.tsv widgetrag.db uploads.tar.gz opensearch-snapshots.tar.gz MANIFEST.txt)
 OS="http://127.0.0.1:9200"
+# 실행 파일 층 (Shell 설치형의 산출물) — 이름은 flat 이어야 package-files.tsv 에 실린다 (pkg_name_ok)
+APP_TREE="app-tree.tar.gz"
+APP_WHEELS="app-wheels.tar.gz"
+APP_TREE_ENV="app-tree.env"          # 트리 루트의 표식 — 타겟 env.sh 가 이 파일로 CODE_SOURCE=package 를 안다
+APP_MANIFEST="app-manifest.tsv"      # 트리 안 파일별 relpath · bytes · sha256 — 전개 직후 대조
+APP_LOCK="ai-server/requirements-lock.txt"   # 소스 venv 의 pip freeze — 타겟은 이 버전 그대로 venv 를 다시 만든다
 
 # 이관 동등성 계산기 — 해시 · 판정 로직은 migcheck.py 한 곳에 둔다 (package.sh · verify.sh 공용)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -629,6 +643,84 @@ for p in ("torch", "sentence-transformers"):
   } > "$out" 2>/dev/null || true
 }
 
+# ---------- 실행 파일 층 (Shell 설치형) — backup 과 compare 가 같은 함수로 계산한다 ----------
+app_root() {  # 이 스크립트가 든 트리의 루트 (= PROJECT_ROOT)
+  ( cd "$SCRIPT_DIR/.." && pwd )
+}
+
+app_jar() {  # app_jar <루트> — backend jar 경로 (없으면 빈 값)
+  { ls "$1"/backend/target/backend-*.jar 2>/dev/null | awk 'NR == 1'; } || true
+}
+
+app_list_files() {  # app_list_files <루트> <하위디렉토리> — 루트 기준 상대경로 NUL 목록, 런타임 산출물 제외, 정렬
+  # .venv(옮길 수 없음) · __pycache__(양쪽에 다르게 생김) · logs/pids(env.sh 가 만든다) · 비밀값 · 백업본을 뺀다.
+  # write_manifest 는 디렉토리를 가지치기하지 못해 .venv 수만 파일을 훑으므로 여기서는 쓰지 않는다.
+  local root="$1" sub="$2"
+  [ -d "$root/$sub" ] || return 0
+  ( cd "$root" && find "$sub" \( -name .git -o -name .venv -o -name __pycache__ -o -name node_modules \
+        -o -path scripts/local/logs -o -path scripts/local/pids -o -path scripts/local/exports -o -path scripts/local/imports \) -prune \
+      -o -type f ! -name .admin-password ! -name '*.pyc' ! -name '*.bak.*' ! -name '*.original' -print0 ) | LC_ALL=C sort -z
+  return 0
+}
+
+app_manifest() {  # app_manifest <루트> <하위디렉토리>... — relpath\tbytes\tsha256 (정렬)
+  local root="$1" sub f; shift
+  for sub in "$@"; do
+    app_list_files "$root" "$sub" | while IFS= read -r -d '' f; do
+      printf '%s\t%s\t%s\n' "$f" "$(stat -c %s "$root/$f")" "$(sha256sum "$root/$f" | cut -d' ' -f1)"
+    done
+  done
+  return 0
+}
+
+app_inventory() {  # app_inventory <루트> — 실행 파일 기준선 행 (키\tbytes\tsha256) — compare-tsv --bytes-col 2 로 대조
+  local root="$1" jar lock man sub venv pipf code_ref
+  jar="$(app_jar "$root")"
+  if [ -n "$jar" ]; then printf 'jar\t%s\t%s\n' "$(stat -c %s "$jar")" "$(sha256sum "$jar" | cut -d' ' -f1)"
+  else printf 'jar\t-\tmissing\n'; fi
+  for sub in scripts frontend ai-server; do          # 트리 하나 = 목록 텍스트의 sha256 (파일 하나만 달라도 바뀐다)
+    man="$(app_manifest "$root" "$sub")"
+    printf '%s\t%s\t%s\n' "$sub" "$(printf '%s\n' "$man" | awk -F'\t' '{s += $2} END {printf "%.0f", s}')" \
+      "$(printf '%s\n' "$man" | sha256sum | cut -d' ' -f1)"
+  done
+  lock="$root/$APP_LOCK"
+  if [ -f "$lock" ]; then printf 'pip-lock\t%s\t%s\n' "$(stat -c %s "$lock")" "$(sha256sum "$lock" | cut -d' ' -f1)"
+  else printf 'pip-lock\t-\tmissing\n'; fi
+  # 실제 설치된 venv 의 목록 — 잠금 파일은 복사본이라 같을 수밖에 없고, 타겟 venv 가 소스와 같음을 증명하는 건 이 행이다
+  venv="${VENV_DIR:-$root/ai-server/.venv}"
+  if [ -x "$venv/bin/pip" ]; then
+    pipf="$("$venv/bin/pip" freeze --all --exclude pip 2>/dev/null | LC_ALL=C sort)" || pipf=""
+    printf 'pip-installed\t%s\t%s\n' "$(printf '%s\n' "$pipf" | grep -c . || true)" "$(printf '%s\n' "$pipf" | sha256sum | cut -d' ' -f1)"
+  else printf 'pip-installed\t-\tmissing\n'; fi
+  code_ref="$(git -C "$root" rev-parse --short HEAD 2>/dev/null)" || code_ref=""
+  [ -n "$code_ref" ] || code_ref="$(kv_get "$root/$APP_TREE_ENV" APP_CODE_REF)"   # 패키지로 전개된 트리엔 .git 이 없다
+  printf 'code_ref\t-\t%s\n' "${code_ref:-unknown}"
+  return 0
+}
+
+env_inventory() {  # env_inventory — 실행 환경 행 (키\t값). 차이는 이관 실패가 아니라 원인 기록 — compare 는 WARN 으로 본다
+  local fp k
+  fp="$(mktemp)"
+  fingerprint "$fp" || true       # 휘발 키(hostname · runtime · form · ollama_processor · code_ref)는 빼고 옮겨 적는다
+  for k in opensearch_version ollama_version llm_model model_digest show_sha256 llm_temperature llm_seed llm_num_predict \
+           embedding_device gpu driver python torch sentence_transformers; do
+    printf '%s\t%s\n' "$k" "$(fp_clean "$(kv_get "$fp" "$k")")"
+  done
+  rm -f "$fp"
+  printf 'java\t%s\n'           "$(fp_clean "$( { java -version 2>&1 | awk -F'"' 'NR == 1 {print $2}'; } 2>/dev/null )")"
+  printf 'nginx\t%s\n'          "$(fp_clean "$( { nginx -v 2>&1 | sed 's#.*nginx/##'; } 2>/dev/null )")"
+  printf 'opensearch_pkg\t%s\n' "$(fp_clean "$( { dpkg-query -W -f='${Version}' opensearch; } 2>/dev/null )")"
+  printf 'tz\t%s\n'             "$(fp_clean "$( { $AS_ROOT grep '^TZ=' /etc/widgetrag/widgetrag.env | tail -1 | cut -d= -f2-; } 2>/dev/null )")"
+  return 0
+}
+
+src_env_value() {  # src_env_value <키> — 소스의 서비스 환경변수 값 (native: /etc/widgetrag/widgetrag.env · compose: .env), 비밀값은 부르지 않는다
+  case "$RUNTIME" in
+    compose) { $AS_ROOT grep "^$1=" "$COMPOSE_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- ; } || true ;;
+    *)       { $AS_ROOT grep "^$1=" /etc/widgetrag/widgetrag.env 2>/dev/null | tail -1 | cut -d= -f2- ; } || true ;;
+  esac
+}
+
 # ===========================================================
 # backup — 소스에서 패키지 생성
 # ===========================================================
@@ -931,6 +1023,66 @@ cmd_backup() {
     log "4. 이관 동등성 기준선 — 건너뜀 (BASELINE=0)"
   fi
 
+  # ----- 4b. 실행 파일 층 (Shell 설치형) -----
+  # 계획서의 "실행 파일 · 스크립트 · 의존 패키지 · 환경변수"를 소스에서 떠서 옮긴다. 타겟은 git clone · Maven · pip 해석 없이
+  # 이 트리와 잠금 목록으로 같은 것을 다시 세운다. 골든(수 분) 앞에 두어 jar 가 없으면 일찍 멈춘다.
+  local APP_STATUS=none APP_CODE_REF="" APP_TREE_SHA="" APP_WHEELS_STATUS=0
+  if [ "$RUNTIME" = native ]; then
+    log "4b. 실행 파일 층 — scripts · backend jar · frontend · ai-server(소스 + pip 잠금)"
+    local root jar venv lock_n
+    root="$(app_root)"
+    jar="$(app_jar "$root")"
+    [ -n "$jar" ] || die "backend jar 가 없습니다 ($root/backend/target) — 기동된 소스에서 떠야 합니다 (./40-start-apps.sh)"
+    venv="${VENV_DIR:-$root/ai-server/.venv}"
+    [ -x "$venv/bin/pip" ] || die "AI 서버 venv 가 없습니다 ($venv) — 기동된 소스에서 떠야 합니다"
+    # 의존 패키지 잠금 — --all 이어야 setuptools 같은 간접 의존까지 고정된다 (빠지면 타겟이 최신을 받아 어긋난다)
+    "$venv/bin/pip" freeze --all --exclude pip > "$root/$APP_LOCK" 2>/dev/null || die "pip freeze 실패 ($venv)"
+    if grep -Eq ' @ |^-e ' "$root/$APP_LOCK"; then
+      die "잠금 목록에 경로 · 편집 설치 항목이 있어 타겟에서 재현할 수 없습니다: $(grep -E ' @ |^-e ' "$root/$APP_LOCK" | head -3 | tr '\n' ' ')"
+    fi
+    lock_n="$(grep -c . "$root/$APP_LOCK" || true)"
+    APP_CODE_REF="$(git -C "$root" rev-parse --short HEAD 2>/dev/null)" || APP_CODE_REF=""
+    [ -n "$APP_CODE_REF" ] || APP_CODE_REF="$(kv_get "$root/$APP_TREE_ENV" APP_CODE_REF)"   # 이미 패키지로 전개된 소스(A→A→A)
+    APP_CODE_REF="${APP_CODE_REF:-unknown}"
+    {
+      echo "APP_CODE_REF=$APP_CODE_REF"
+      echo "APP_CREATED_AT=$(date '+%Y-%m-%dT%H:%M:%S%z')"
+      echo "APP_SOURCE_HOST=$(hostname)"
+      echo "APP_JAR=${jar#"$root"/}"
+    } > "$root/$APP_TREE_ENV"
+    app_manifest "$root" scripts frontend ai-server > "$root/$APP_MANIFEST"
+    printf '%s\t%s\t%s\n' "${jar#"$root"/}" "$(stat -c %s "$jar")" "$(sha256sum "$jar" | cut -d' ' -f1)" >> "$root/$APP_MANIFEST"
+    started=$(date +%s)
+    # 동일성 판정은 tar 바이트가 아니라 안의 목록(app-manifest.tsv)으로 한다 — 재현성 옵션은 최선 노력
+    { app_list_files "$root" scripts; app_list_files "$root" frontend; app_list_files "$root" ai-server
+      printf '%s\0%s\0%s\0' "${jar#"$root"/}" "$APP_TREE_ENV" "$APP_MANIFEST"; } \
+      | ( cd "$root" && tar --no-recursion --null --owner=0 --group=0 --numeric-owner --mtime='@0' -cf - -T - ) \
+      | compress_to "$out/$APP_TREE"
+    APP_TREE_SHA="$(sha256sum "$out/$APP_TREE" | cut -d' ' -f1)"
+    log "   트리 $(du -h "$out/$APP_TREE" | cut -f1) — $(basename "$jar") · pip 잠금 ${lock_n}줄 · 커밋 $APP_CODE_REF ($(( $(date +%s) - started ))초)"
+    if [ "${WITH_WHEELS:-0}" = 1 ]; then
+      log "   wheel 동봉 (WITH_WHEELS=1) — 잠금 목록을 내려받는다 (torch 포함, 수 GB)"
+      local wdir="$WORK_TMP/wheels"
+      mkdir -p "$wdir"
+      # --platform 을 주지 않는다 — 소스 venv 와 같은 인터프리터 · 플랫폼으로 받아야 torch(manylinux_2_28) 가 풀린다
+      if "$venv/bin/pip" download -q -r "$root/$APP_LOCK" -d "$wdir" --only-binary=:all: 2>"$WORK_TMP/wheels.err"; then
+        ( cd "$wdir" && tar --owner=0 --group=0 --numeric-owner --mtime='@0' -cf - . ) | compress_to "$out/$APP_WHEELS"
+        APP_WHEELS_STATUS=1
+        log "   wheel $(ls "$wdir" | wc -l | tr -d ' ')개 — $(du -h "$out/$APP_WHEELS" | cut -f1)"
+      else
+        warn "   wheel 내려받기 실패 — 동봉 없이 진행 (타겟은 PyPI 에서 같은 버전을 받는다): $(tail -1 "$WORK_TMP/wheels.err" 2>/dev/null)"
+        APP_WHEELS_STATUS=failed
+      fi
+      rm -rf "$wdir"
+    fi
+    app_inventory "$root" > "$out/baseline-app.tsv"
+    env_inventory > "$out/baseline-env.tsv"
+    APP_STATUS=included
+    log "   기준선: baseline-app.tsv($(grep -c . "$out/baseline-app.tsv" || true)행) · baseline-env.tsv($(grep -c . "$out/baseline-env.tsv" || true)행)"
+  else
+    log "4b. 실행 파일 층 — 건너뜀 (Compose 는 이미지가 실행 파일 — 레지스트리로 옮긴다)"
+  fi
+
   # ----- 5. 골든 응답 (테스트2 기준) -----
   # VACUUM INTO 뒤에 한다 — 골든 호출은 chat_log 에 행을 더하지만 패키지 DB 는 이미 떠 두었으므로
   # 패키지 내용이 골든 실행 여부와 무관하다.
@@ -969,6 +1121,14 @@ GOLDEN_ITEMS=$GOLDEN_ITEMS
 PACKAGE_FILES_SHA256=$pf_sha
 PACKAGE_FILES_COUNT=$pf_n
 PACKAGE_FILES_BYTES=$pf_b
+APP_STATUS=$APP_STATUS
+APP_CODE_REF=$APP_CODE_REF
+APP_TREE_SHA256=$APP_TREE_SHA
+APP_WHEELS=$APP_WHEELS_STATUS
+APP_LLM_TEMPERATURE=$(src_env_value LLM_TEMPERATURE)
+APP_LLM_SEED=$(src_env_value LLM_SEED)
+APP_OLLAMA_MODEL=$(src_env_value OLLAMA_MODEL)
+APP_TZ=$(src_env_value TZ)
 EOF
   ( cd "$out" && sha256sum package.env doccount.tsv "$DB_NAME" uploads.tar.gz opensearch-snapshots.tar.gz > checksums.sha256 )
 
@@ -985,6 +1145,9 @@ WidgetRAG 이관 패키지
   package.env                  원본 형태 · 업로드 경로 접두사 ($STORAGE_BASE)
   checksums.sha256             위 파일들의 SHA-256
   package-files.tsv            패키지 파일 전부의 바이트 · SHA-256 (아래 기준선 파일 포함)
+$(if [ "$APP_STATUS" = included ]; then printf '  %-28s %s\n' "$APP_TREE" "실행 파일 층 — scripts · $(basename "$jar") · frontend · ai-server(소스 + pip 잠금) · 커밋 $APP_CODE_REF"; \
+    printf '  %-28s %s\n' "baseline-app.tsv" "실행 파일 기준선 (타겟 T1-3 app: 완전 일치) · baseline-env.tsv 실행 환경 (runtime: WARN)"; \
+    [ "$APP_WHEELS_STATUS" = 1 ] && printf '  %-28s %s\n' "$APP_WHEELS" "잠금 목록의 wheel (폐쇄망용)"; fi)
 
 정합성 확인
   전송 직후   sha256sum -c checksums.sha256
@@ -1000,8 +1163,10 @@ WidgetRAG 이관 패키지
 $(awk -F'\t' '{printf "    %-30s %15s bytes  %s\n", $1, $2, substr($3, 1, 12)}' "$out/package-files.tsv")
 
 포함하지 않은 것
-  LLM · 임베딩 모델   타겟에서 자동으로 다시 받는다
+  LLM · 임베딩 모델   타겟에서 자동으로 다시 받는다 (digest 로 대조)
   관리자 비밀번호     비밀값이라 제외 — 이관된 DB 의 기존 계정은 소스의 비밀번호로 로그인한다
+  venv · 유닛 · 설정  경로 · 사용자가 달라 옮기지 않는다 — 타겟이 잠금 목록 · 생성기(scripts/)로 다시 만든다$(
+    [ "$APP_STATUS" = included ] || printf '\n  실행 파일 층        소스가 Compose 라 없다 — 이미지가 실행 파일이고 레지스트리로 옮긴다')
 
 타겟에서 (패키지를 오브젝트 스토리지에 올린 뒤)
   A  curl -fsSL <raw>/scripts/local/bootstrap.sh | SNAPSHOT_URI=<이 패키지 위치> bash

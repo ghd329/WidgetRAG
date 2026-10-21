@@ -7,3 +7,4 @@ Dockerfile
 # 미사용 (gemma 계열)
 main_gemma.py
 requirements_gemma.txt
+requirements-lock.txt

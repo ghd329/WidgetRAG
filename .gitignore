@@ -62,3 +62,9 @@ scripts/local/imports/
 # ===== 이관 패키지 — 색인 스냅샷 저장소 (docker-compose.yml 이 /mnt/snapshots 로 마운트) =====
 snapshots/*
 !snapshots/.gitkeep
+
+# ===== 이관 패키지 — 실행 파일 층 (scripts/package.sh backup 이 소스 트리에 생성 · 타겟 전개 표식) =====
+ai-server/requirements-lock.txt
+/app-tree.env
+/app-manifest.tsv
+/.app-tree.sha256

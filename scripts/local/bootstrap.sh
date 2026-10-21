@@ -23,6 +23,9 @@
 #        서비스 · 데이터가 /root 아래에 생겨, 나중에 사람이 SSH 로 붙었을 때 아무것도 안 보이는
 #        상황을 막는다 (systemd 유닛의 User= · 파일 소유권 · venv 경로가 전부 그 사용자 기준).
 #     1) git 설치 → clone (있으면 fetch + reset --hard origin/BRANCH) → 디스크 사본으로 다시 실행.
+#        ★ 이관 패키지에 실행 파일 층(app-tree.tar.gz)이 있으면 — SNAPSHOT_URI 또는 PACKAGE_DIR — clone 대신 그 트리를
+#          TARGET_DIR 에 풀고 그 안의 bootstrap.sh 로 갈아탄다. 소스에서 빌드된 jar · pip 잠금 목록을 그대로 쓰므로
+#          타겟에 git · Maven · 소스가 필요 없다 (CODE_SOURCE=auto|package|git, 트리 루트의 app-tree.env 가 표식).
 #        ★ curl | bash 로 들어오면 스크립트 본문이 stdin 이다. 뒤에서 stdin 을 읽는 명령이 돌면
 #          남은 본문을 삼켜 에러 한 줄 없이 끝난다 (LexAI 결함 4). 사본으로 갈아타 stdin 과 끊는다.
 #     2) 자기 설치 — clone된 스크립트를 /usr/local/bin/bootstrap.sh 로 복사
@@ -47,6 +50,9 @@
 #     TARGET_DIR    기본 $HOME/WidgetRAG
 #     TARGET_USER   root 로 실행될 때 서비스를 돌릴 사용자 (기본 uid 1000)
 #     SNAPSHOT_URI  이관 패키지 위치 (s3:// · gs:// · https:// · 로컬 경로) — scripts/package.sh
+#                   ※ rsync 로 PACKAGE_DIR(기본 $HOME/widgetrag-package) 에 넣어 두었으면 SNAPSHOT_URI 없이 실행한다
+#     CODE_SOURCE   auto(기본) | package | git — package: 패키지의 실행 파일 트리로만 기동(없으면 실패), git: 패키지가 있어도 clone
+#     PACKAGE_DIR   받은 패키지 위치 (기본 $HOME/widgetrag-package — root 로 실행되면 서비스 사용자의 홈 기준)
 #     NO_DRIVER=1   드라이버 단계 스킵 (GPU 이미지 · GPU 없는 검증 VM)
 #     NVIDIA_DRIVER_SERIES  설치할 드라이버 시리즈 (기본 595 → ubuntu-drivers install nvidia:595). 빈 값이면 추천판.
 #                   같은 이미지 · 같은 명령인데 1차 580 · 2차 595 가 깔린 적이 있어(2026-10-16) 소스 · 타겟을 같은
@@ -70,6 +76,7 @@ NVIDIA_DRIVER_SERIES="${NVIDIA_DRIVER_SERIES-595}"
 REPO_URL="${REPO_URL:-https://github.com/ghd329/WidgetRAG.git}"
 BRANCH="${BRANCH:-}"          # 미지정 시: 기존 clone의 현재 브랜치 → 없으면 DEFAULT_BRANCH
 COMMIT="${COMMIT:-}"
+CODE_SOURCE="${CODE_SOURCE:-auto}"   # auto | package | git — 아래 app_tree_file 참고
 MODE="${1:-}"
 RESUME_UNIT="widgetrag-bootstrap-resume"
 RESUME_ENV="/etc/widgetrag/bootstrap-resume.env"
@@ -77,7 +84,7 @@ RESUME_ENV="/etc/widgetrag/bootstrap-resume.env"
 # 재실행 · 재부팅 재개 때 넘겨야 하는 값 — 설정된 것만 넘긴다
 PASS_VARS=(REPO_URL BRANCH COMMIT TARGET_DIR SNAPSHOT_URI S3_ENDPOINT_URL NO_DRIVER FORCE_RESTORE
            LLM_TEMPERATURE LLM_SEED APP_TZ OLLAMA_MODEL OLLAMA_VERSION FORM RUNS REQUIRE_DATA VERIFY_ADMIN_PASSWORD
-           COMPARE GOLDEN_CHECK EXPECT_SERVICE_COUNT
+           COMPARE GOLDEN_CHECK EXPECT_SERVICE_COUNT CODE_SOURCE PACKAGE_DIR
            AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_DEFAULT_REGION)
 
 # 이관 도구로 실행되면 TTY 가 없고 출력이 로그로 수집된다 — 그때는 색상 제어문자를 쓰지 않는다.
@@ -157,6 +164,85 @@ ensure_git() {
   apt_get install -y -q git ca-certificates curl >/dev/null
 }
 
+ensure_curl() {  # 패키지 모드는 git 이 필요 없다 — 원격 패키지를 받을 curl 만 보장한다
+  command -v curl >/dev/null 2>&1 && return 0
+  apt_get update -qq
+  apt_get install -y -q curl ca-certificates >/dev/null
+}
+
+# ---------- 이관 패키지의 실행 파일 층 (app-tree.tar.gz) ----------
+fetch_pkg_min() {  # fetch_pkg_min <URI> <받을디렉토리> [실행 접두사...] — 트리 전개에 필요한 세 파일만 (package.sh fetch 와 같은 규칙)
+  # 진짜 fetch(package.sh)는 트리 안에 있어 아직 없다. .source 는 쓰지 않는다 — 뒤에 도는 fetch 가 나머지를 제대로 받게.
+  local uri="$1" dst="$2"; shift 2
+  local as=("$@") f
+  "${as[@]}" mkdir -p "$dst"
+  for f in package.env package-files.tsv app-tree.tar.gz; do
+    case "$uri" in
+      s3://*)             command -v aws >/dev/null 2>&1 || die "aws CLI 가 없습니다 — 패키지를 로컬 경로 · https 로 두거나 aws 를 먼저 설치하세요"
+                          "${as[@]}" aws ${S3_ENDPOINT_URL:+--endpoint-url "$S3_ENDPOINT_URL"} s3 cp "$uri/$f" "$dst/$f" --only-show-errors || true ;;
+      gs://*)             command -v gsutil >/dev/null 2>&1 || die "gsutil 이 없습니다 — 패키지를 로컬 경로 · https 로 두거나 gsutil 을 먼저 설치하세요"
+                          "${as[@]}" gsutil -q cp "$uri/$f" "$dst/$f" || true ;;
+      http://*|https://*) "${as[@]}" curl -fsSL "$uri/$f" -o "$dst/$f" || true ;;
+      *)                  if [ -f "$uri/$f" ]; then "${as[@]}" cp "$uri/$f" "$dst/$f"; fi ;;
+    esac
+  done
+  return 0
+}
+
+app_tree_file() {  # app_tree_file [실행 접두사...] — 패키지의 app-tree.tar.gz 경로를 stdout 으로 (없으면 빈 값 → git 모드)
+  local as=("$@") src=""
+  [ "$CODE_SOURCE" != git ] || return 0
+  if [ -n "${SNAPSHOT_URI:-}" ]; then
+    case "$SNAPSHOT_URI" in
+      s3://*|gs://*|http://*|https://*)
+        { ensure_curl; fetch_pkg_min "$SNAPSHOT_URI" "$PACKAGE_DIR" "${as[@]}"; } >&2   # 로그가 stdout(반환값)에 섞이지 않게
+        src="$PACKAGE_DIR" ;;
+      *) if [ -d "$SNAPSHOT_URI" ]; then src="$SNAPSHOT_URI"; fi ;;    # 로컬 디렉토리 — 복사 없이 제자리에서 읽는다
+    esac
+  fi
+  [ -n "$src" ] || src="$PACKAGE_DIR"                                   # rsync 로 미리 넣어 둔 패키지
+  if [ -f "$src/app-tree.tar.gz" ] && [ -f "$src/package-files.tsv" ]; then
+    printf '%s\n' "$src/app-tree.tar.gz"
+  elif [ "$CODE_SOURCE" = package ]; then
+    die "CODE_SOURCE=package 인데 패키지에 app-tree.tar.gz 가 없습니다 (${SNAPSHOT_URI:-$PACKAGE_DIR}) — 소스가 Shell 설치형이고 backup 이 새 판(실행 파일 층)인지 확인"
+  fi
+  return 0
+}
+
+unpack_app_tree() {  # unpack_app_tree <tar> [실행 접두사...] — 트리를 TARGET_DIR 에 전개 (실행 사용자 소유). 같은 트리면 건너뜀
+  local tar="$1"; shift
+  local as=("$@") pkgdir want have bak="" bad
+  pkgdir="$(dirname "$tar")"
+  want="$(awk -F'\t' '$1 == "app-tree.tar.gz" {print $3}' "$pkgdir/package-files.tsv" | tail -1)"
+  [ -n "$want" ] || die "package-files.tsv 에 app-tree.tar.gz 가 없습니다 ($pkgdir)"
+  have="$(sha256sum "$tar" | cut -d' ' -f1)"
+  [ "$have" = "$want" ] || die "app-tree.tar.gz 해시 불일치 — 전송 중 손상 (기대 ${want:0:12} / 실제 ${have:0:12})"
+  if [ -f "$TARGET_DIR/.app-tree.sha256" ] && [ "$(cat "$TARGET_DIR/.app-tree.sha256")" = "$have" ]; then
+    log "패키지 트리 이미 전개됨: $TARGET_DIR (${have:0:12}) — 그대로 사용"
+    return 0
+  fi
+  if [ -e "$TARGET_DIR" ] && [ -n "$(ls -A "$TARGET_DIR" 2>/dev/null)" ]; then
+    bak="$TARGET_DIR.bak.$(date +%Y%m%d%H%M%S)"
+    if [ -d "$TARGET_DIR/.git" ]; then log "기존 git clone 을 비켜 둠: $TARGET_DIR → $bak"
+    else log "기존 트리를 비켜 둠: $TARGET_DIR → $bak"; fi
+    "${as[@]}" mv "$TARGET_DIR" "$bak"
+  fi
+  log "패키지 트리 전개: $tar → $TARGET_DIR (소스에서 빌드된 산출물 — 타겟에서 빌드하지 않는다)"
+  "${as[@]}" mkdir -p "$TARGET_DIR"
+  # 반드시 실행 사용자로 푼다 — root 가 풀면 venv · logs · nginx 워커가 그 사용자로 쓰지 못한다
+  "${as[@]}" tar -xf "$tar" -C "$TARGET_DIR" --no-same-owner
+  bad="$( { awk -F'\t' 'NF == 3 {print $3 "  " $1}' "$TARGET_DIR/app-manifest.tsv" \
+          | "${as[@]}" sh -c "cd '$TARGET_DIR' && sha256sum -c --quiet" 2>&1 | head -5; } || true)"
+  [ -z "$bad" ] || die "전개된 트리가 목록(app-manifest.tsv)과 다릅니다: $bad"
+  if [ -n "$bak" ]; then   # 다시 만들 필요 없는 것은 되돌린다 — venv(같은 경로라 유효 · 40 이 잠금 목록으로 맞춘다) · 이 환경의 관리자 비밀번호
+    if [ -d "$bak/ai-server/.venv" ]; then "${as[@]}" mv "$bak/ai-server/.venv" "$TARGET_DIR/ai-server/.venv"; fi
+    if [ -f "$bak/scripts/local/.admin-password" ]; then "${as[@]}" cp -p "$bak/scripts/local/.admin-password" "$TARGET_DIR/scripts/local/.admin-password"; fi
+  fi
+  printf '%s\n' "$have" | "${as[@]}" tee "$TARGET_DIR/.app-tree.sha256" >/dev/null
+  log "트리 준비 완료: 커밋 $(grep '^APP_CODE_REF=' "$TARGET_DIR/app-tree.env" | cut -d= -f2-) · 파일 $(grep -c . "$TARGET_DIR/app-manifest.tsv" || true)개"
+  return 0
+}
+
 # ---------- 0. 실행 사용자 — root 면 uid 1000 사용자로 이어서 ----------
 if [ "$(id -u)" -eq 0 ] && [ "${WIDGETRAG_REEXEC:-0}" != 1 ]; then
   RUN_USER="${TARGET_USER:-${SUDO_USER:-}}"
@@ -166,27 +252,39 @@ if [ "$(id -u)" -eq 0 ] && [ "${WIDGETRAG_REEXEC:-0}" != 1 ]; then
   [ -n "$RUN_USER" ] || die "일반 사용자를 찾지 못했습니다 — TARGET_USER 로 지정하세요"
   RUN_HOME="$(getent passwd "$RUN_USER" | cut -d: -f6)"
   TARGET_DIR="${TARGET_DIR:-$RUN_HOME/WidgetRAG}"
+  PACKAGE_DIR="${PACKAGE_DIR:-$RUN_HOME/widgetrag-package}"   # root 의 $HOME(/root) 이 아니라 서비스 사용자 기준
   log "root 로 실행되었습니다 — ${RUN_USER} 사용자로 이어서 진행합니다"
 
-  ensure_git
-  # 재실행할 스크립트가 디스크에 있어야 한다 — 저장소를 그 사용자로 받는다 (root 가 받으면
-  # 소유자가 달라 이후 git 이 dubious ownership 으로 거부한다)
-  sync_repo sudo -u "$RUN_USER" -H
+  # 재실행할 스크립트가 디스크에 있어야 한다 — 저장소(또는 패키지 트리)를 그 사용자로 받는다 (root 가 받으면
+  # 소유자가 달라 이후 git 이 dubious ownership 으로 거부하고, venv · logs 도 그 사용자가 쓰지 못한다)
+  APP_TREE_FILE="$(app_tree_file sudo -u "$RUN_USER" -H)"
+  if [ -n "$APP_TREE_FILE" ]; then
+    unpack_app_tree "$APP_TREE_FILE" sudo -u "$RUN_USER" -H
+  else
+    ensure_git
+    sync_repo sudo -u "$RUN_USER" -H
+  fi
   mapfile -d '' ENV_ARGS < <(pass_env)
   exec sudo -u "$RUN_USER" -H env WIDGETRAG_REEXEC=1 WIDGETRAG_FROMFILE=1 WIDGETRAG_RESUME="${WIDGETRAG_RESUME:-0}" "${ENV_ARGS[@]}" \
-    TARGET_DIR="$TARGET_DIR" BRANCH="$BRANCH" \
+    TARGET_DIR="$TARGET_DIR" PACKAGE_DIR="$PACKAGE_DIR" BRANCH="$BRANCH" \
     bash "$TARGET_DIR/scripts/local/bootstrap.sh" "$MODE" </dev/null
 fi
 
 TARGET_DIR="${TARGET_DIR:-$HOME/WidgetRAG}"
+PACKAGE_DIR="${PACKAGE_DIR:-$HOME/widgetrag-package}"
 
 # ---------- 1. 코드 확보 → 디스크 사본으로 다시 실행 ----------
 if [ "${WIDGETRAG_FROMFILE:-0}" != 1 ]; then
-  ensure_git
-  sync_repo
+  APP_TREE_FILE="$(app_tree_file)"
+  if [ -n "$APP_TREE_FILE" ]; then
+    unpack_app_tree "$APP_TREE_FILE"       # 이관: 패키지의 실행 파일 트리 (빌드 없음)
+  else
+    ensure_git
+    sync_repo                              # 백지 구축: 저장소 clone → 타겟에서 빌드
+  fi
   # 사본에서 실행 중일 때(WIDGETRAG_FROMFILE=1)는 저장소를 건드리지 않는다 — bash 는 스크립트를
   # 조금씩 읽어가므로, 실행 중인 파일을 git 이 덮어쓰면 남은 부분이 깨진다.
-  export WIDGETRAG_FROMFILE=1 REPO_URL BRANCH COMMIT TARGET_DIR
+  export WIDGETRAG_FROMFILE=1 REPO_URL BRANCH COMMIT TARGET_DIR PACKAGE_DIR CODE_SOURCE
   exec bash "$TARGET_DIR/scripts/local/bootstrap.sh" "$MODE" </dev/null
 fi
 
