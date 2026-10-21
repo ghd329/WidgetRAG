@@ -1244,12 +1244,24 @@ cmd_fetch() {
     have="$(sha256sum "$dir/package-files.tsv" | cut -d' ' -f1)"
     [ -n "$want" ] && [ "$have" = "$want" ] \
       || die "패키지 파일 목록 불일치 — package-files.tsv 의 SHA-256 이 package.env 와 다릅니다 ($dir)"
-    while IFS=$'\t' read -r name _; do
+    while IFS=$'\t' read -r name bytes sha; do
       [ -n "$name" ] || continue
       pkg_name_ok "$name" || die "패키지 파일 목록에 쓸 수 없는 이름이 있습니다: $name"
-      [ -e "$dir/$name" ] && continue
+      # 이미 있는 파일은 크기 · 해시가 목록과 같을 때만 건너뛴다 — bootstrap 이 먼저 받아 둔 app-tree.tar.gz 는 다시 받지 않고,
+      # 이름만 같은 묵은 파일(이전 패키지의 것)은 다시 받는다
+      if [ -f "$dir/$name" ] && [ "$(stat -c %s "$dir/$name" 2>/dev/null)" = "$bytes" ] \
+         && [ "$(sha256sum "$dir/$name" 2>/dev/null | cut -d' ' -f1)" = "$sha" ]; then
+        continue
+      fi
       fetch_one "$uri/$name" "$dir/$name" </dev/null || die "받지 못했습니다: $uri/$name"
     done < "$dir/package-files.tsv"
+    # 목록에 없는 실행 파일 층 아카이브가 남아 있으면 지운다 — T1-2 가 "타겟에만 있음" 으로 본다
+    for f in "$dir"/app-*.tar.gz; do
+      [ -f "$f" ] || continue
+      if ! grep -q "^$(basename "$f")"$'\t' "$dir/package-files.tsv"; then
+        rm -f "$f"; log "   목록에 없는 아카이브 제거: $(basename "$f")"
+      fi
+    done
     verify_pkg_files "$dir" || die "패키지 파일 불일치: $PKG_BAD"
   fi
 
@@ -1671,6 +1683,41 @@ cmp_uploads() {  # T1-3 업로드 — 패키지 목록(uploads.tar.gz 의 conten
   mc_err "$rc" T1-3 upload: compare-tsv
 }
 
+cmp_app() {  # T1-3 실행 파일 층 — 패키지의 baseline-app.tsv(소스 산출물) 대 타겟 트리 · venv. baseline-env.tsv(실행 환경)는 WARN
+  local pkg="$1" evi="$2" root lvl=FAIL rc
+  if [ ! -f "$pkg/baseline-app.tsv" ]; then
+    row T1-3 app: - - INFO "실행 파일 층 없음 (APP_STATUS=$(pkg_value "$pkg" APP_STATUS) — 소스가 Compose 이거나 구형 패키지)"
+    return 0
+  fi
+  if [ "$RUNTIME" != native ]; then
+    row T1-3 app: - - INFO "Compose 타겟 — 실행 파일은 이미지(IMAGE_TAG)로 옮긴다 · 패키지의 실행 파일 층은 판정 제외"
+    return 0
+  fi
+  root="$(app_root)"
+  if [ ! -f "$root/$APP_TREE_ENV" ]; then
+    # 저장소 clone 으로 재구축된 타겟 — 소스와 같은 커밋이어도 빌드 산출물은 다를 수 있다 (jar 타임스탬프 · pip 해석)
+    lvl=WARN
+    row T1-3 app:mode package git WARN "타겟이 저장소 clone 으로 재구축됨 (CODE_SOURCE=git) — 실행 파일 대조는 WARN 으로만"
+  fi
+  rc=0; app_inventory "$root" > "$evi/app-target.tsv" 2>/dev/null || rc=$?
+  if [ "$rc" != 0 ]; then
+    row T1-3 app: - - FAIL "타겟 실행 파일 목록을 만들지 못했습니다 ($root)"
+    return 0
+  fi
+  rc=0
+  mc_rows "$CMP_TMP/rows-app.tsv" compare-tsv --test T1-3 --prefix app: --level "$lvl" --bytes-col 2 \
+    --source "$pkg/baseline-app.tsv" --target "$evi/app-target.tsv" || rc=$?
+  mc_err "$rc" T1-3 app: compare-tsv
+  if [ -f "$pkg/baseline-env.tsv" ]; then
+    env_inventory > "$evi/env-target.tsv" 2>/dev/null || true
+    rc=0
+    mc_rows "$CMP_TMP/rows-env.tsv" compare-tsv --test T1-3 --prefix runtime: --level WARN \
+      --source "$pkg/baseline-env.tsv" --target "$evi/env-target.tsv" || rc=$?
+    mc_err "$rc" T1-3 runtime: compare-tsv
+  fi
+  return 0
+}
+
 cmp_golden() {  # T2 — 골든 질문을 같은 조건(질문마다 콜드 로드)으로 다시 묻고 답변 바이트 · 추천 상품을 대조
   local pkg="$1" evi="$2" gst="$3" model raw line id cc q body first=1 unload_fail=0 rc want lst exp got
   local -a plan=()
@@ -1790,6 +1837,8 @@ cmd_compare() {
   cmp_rag "$pkg" "$evi" "$fmt" "$bst"
   log "T1-3 업로드 파일"
   cmp_uploads "$pkg" "$evi"
+  log "T1-3 실행 파일 · 실행 환경"
+  cmp_app "$pkg" "$evi"
   log "T2 LLM 응답 완전 일치"
   cmp_stage "$evi" T2
   cmp_golden "$pkg" "$evi" "$gst"

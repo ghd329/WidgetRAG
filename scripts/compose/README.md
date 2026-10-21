@@ -98,6 +98,10 @@ toolkit 이 없거나 설정이 틀리면 **에러 없이 CPU 로 폴백한다.*
 이 한 줄이 CB-Tumblebug 의 `postCommands` 에 그대로 실리는 페이로드다. root 로 실행돼도
 uid 1000 사용자로 스스로 전환하므로 배포물이 `/root` 아래에 갇히지 않는다.
 
+Shell 설치형(A) 소스에서 뜬 패키지에는 실행 파일 층(`app-tree.tar.gz` · `baseline-app.tsv` · `baseline-env.tsv`)이 들어 있다.
+B 타겟은 `fetch` 때 받아 두기만 하고 쓰지 않는다 — 이 형태의 실행 파일은 이미지(`IMAGE_TAG`)이고, `compare` 는 INFO 한 줄만 남긴다.
+반대로 B 에서 뜬 패키지에는 실행 파일 층이 없어 A 타겟은 저장소 clone 으로 돌아간다 ([`../local/`](../local/) "실행 파일 이전").
+
 ## 일상 운영
 
 ```bash

@@ -17,7 +17,7 @@
 #     python3 migcheck.py golden-build --questions 파일 --client-code C --raw-dir 디렉토리 --meta 파일 --repeat R --out 파일
 #     python3 migcheck.py golden-plan --golden 파일
 #     python3 migcheck.py golden-compare --golden 파일 --raw-dir 디렉토리 --target-meta 파일 [--diff-dir 디렉토리]
-#     python3 migcheck.py compare-tsv --test T --prefix P --source 파일 --target 파일 [--bytes-col K] [--summary-only-if-pass]
+#     python3 migcheck.py compare-tsv --test T --prefix P --source 파일 --target 파일 [--bytes-col K] [--summary-only-if-pass] [--level FAIL|WARN]
 #     python3 migcheck.py diff-docs --source 파일 --target 파일 [--limit 20]
 #     python3 migcheck.py report --rows 파일 --csv 파일 --timestamp TS --form F --source-form SF --package 이름 --summary 파일
 #
@@ -817,6 +817,9 @@ def col_sum(rows, k):
 
 
 def cmd_compare_tsv(a):
+    # --level WARN: 불일치 · 누락을 FAIL 이 아니라 WARN 으로 적는다 — 실행 환경(드라이버 · 패키지 버전)처럼
+    # 달라도 이관 실패는 아니지만 원인 추적에 남겨야 하는 항목용. 반환값도 FAIL 이 없으면 0 이다.
+    level = getattr(a, "level", "FAIL") or "FAIL"
     src, sorder, sn = read_tsv(a.source)
     tgt, torder, tn = read_tsv(a.target)
     keys = sorted(set(sorder) | set(torder), key=utf8_key)
@@ -826,14 +829,14 @@ def cmd_compare_tsv(a):
         sv = ":".join(src[k][1:]) if k in src else None
         tv = ":".join(tgt[k][1:]) if k in tgt else None
         if sv is None:
-            res, note = "FAIL", "소스에 없음"
+            res, note = level, "소스에 없음"
         elif tv is None:
-            res, note = "FAIL", "타겟에 없음"
+            res, note = level, "타겟에 없음"
         elif sv == tv:
             res, note = "PASS", "일치"
             ok += 1
         else:
-            res, note = "FAIL", "값 다름"
+            res, note = level, "값 다름"
         out_rows.append((a.prefix + k, sv, tv, res, note))
     all_pass = ok == len(keys)
 
@@ -846,9 +849,9 @@ def cmd_compare_tsv(a):
     if not (a.summary_only_if_pass and all_pass):
         for r in out_rows:
             row(a.test, *r)
-    row(a.test, a.prefix + "summary", label(src, sn), label(tgt, tn), "PASS" if all_pass else "FAIL",
+    row(a.test, a.prefix + "summary", label(src, sn), label(tgt, tn), "PASS" if all_pass else level,
         "일치 %d/%d" % (ok, len(keys)))
-    return 0 if all_pass else 1
+    return 0 if (all_pass or level != "FAIL") else 1
 
 
 # ---------- 1.13 diff-docs ----------
@@ -1046,6 +1049,7 @@ def build_parser():
     s.add_argument("--target", required=True)
     s.add_argument("--bytes-col", type=int)
     s.add_argument("--summary-only-if-pass", action="store_true")
+    s.add_argument("--level", choices=("FAIL", "WARN"), default="FAIL", help="불일치의 판정 수준 (기본 FAIL)")
     s.set_defaults(func=cmd_compare_tsv)
 
     s = sub.add_parser("diff-docs", help="문서별 해시 차이 (ROW)")

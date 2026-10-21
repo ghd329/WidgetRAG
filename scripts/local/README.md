@@ -86,15 +86,23 @@ timestamp,form,runs,pass,fail,cold_sec,p50_sec,p95_sec,sources,os_docs,db_msgs,r
 
 ## 이관 패키지 — 두 형태 공용
 
-상태 데이터(색인 · DB · 업로드 파일)만 옮기고, 프로그램 · 미들웨어 · 모델은 타겟에서 새로 마련한다.
-패키지 형식은 실행 형태와 무관하다 — **Shell 설치형에서 뜬 패키지를 Docker Compose 에, 그 반대로도 복원된다.**
+상태 데이터(색인 · DB · 업로드 파일)에 더해, 소스가 Shell 설치형이면 **실행 파일 층**(scripts · backend jar · frontend ·
+ai-server 소스 + pip 잠금 목록)을 함께 싣는다 — 계획서의 "실행 파일 · 스크립트 · 의존 패키지 · 환경변수 이전".
+미들웨어(OpenSearch · Ollama · nginx · Java)와 모델은 타겟에서 같은 버전으로 다시 마련하고 버전 · digest 를 대조한다.
+패키지 형식은 실행 형태와 무관하다 — **Shell 설치형에서 뜬 패키지를 Docker Compose 에, 그 반대로도 복원된다**
+(Compose 타겟은 실행 파일 층을 받아만 두고 쓰지 않는다 — 거기서는 이미지가 실행 파일).
 
 ```bash
-# [소스] 서비스를 멈추지 않고 패키지 생성 — UPLOAD_URI 를 주면 업로드까지
-UPLOAD_URI=s3://버킷/widgetrag/$(date +%Y%m%d-%H%M) bash ../package.sh backup
+# [소스] 서비스를 멈추지 않고 패키지 생성 — GOLDEN=1 이면 LLM 골든 답변까지, UPLOAD_URI 를 주면 업로드까지
+GOLDEN=1 RUNTIME=native bash ../package.sh backup            # → ~/widgetrag-backup/<시각>/
 
-# [타겟] 위 한 줄 진입물에 SNAPSHOT_URI 로 넘기면 끝 (이미 올라간 환경이면)
-SNAPSHOT_URI=s3://버킷/widgetrag/20260924-1030 ./start.sh
+# [타겟 · 권장] rsync/scp 로 ~/widgetrag-package 에 넣고 진입물을 SNAPSHOT_URI 없이 — 트리를 풀어 빌드 없이 기동한다
+rsync -a 소스:~/widgetrag-backup/<시각>/ ~/widgetrag-package/
+curl -fsSL https://raw.githubusercontent.com/ghd329/WidgetRAG/feat/20260922-change-sqlite/scripts/local/bootstrap.sh | COMPARE=1 bash
+#   ※ 같은 디렉토리를 SNAPSHOT_URI 로 주면 fetch 가 "원본 = 목적지" 로 거부한다
+
+# [타겟] 오브젝트 스토리지 경유 — 이미 올라간 환경이면 start.sh 에 (처음이면 bootstrap.sh 에)
+SNAPSHOT_URI=s3://버킷/widgetrag/<시각> ./start.sh
 ```
 
 | 파일 | 내용 |
@@ -103,11 +111,38 @@ SNAPSHOT_URI=s3://버킷/widgetrag/20260924-1030 ./start.sh
 | `widgetrag.db` | SQLite — `VACUUM INTO` 로 뜬 일관된 단일 파일 (서비스 중에도 안전) |
 | `uploads.tar.gz` | 업로드 CSV (안에 `contents.tsv`) |
 | `doccount.tsv` | 인덱스별 문서 수 — 복원 후 대조 |
-| `package.env` | 원본 형태 · 업로드 경로 접두사 — 복원 시 `product.storage_path` 재작성에 사용 |
+| `package.env` | 원본 형태 · 업로드 경로 접두사 — 복원 시 `product.storage_path` 재작성에 사용. `APP_*` 로 소스의 LLM 설정 · 모델 · TZ 도 담는다 |
 | `checksums.sha256` | 위 파일들의 SHA-256 — 전송 직후 대조 |
+| `package-files.tsv` | 패키지 파일 전부의 바이트 · SHA-256 (아래 파일 포함) — `fetch` 가 이 목록대로 받아 대조한다 |
+| `app-tree.tar.gz` | **실행 파일 층** (소스가 Shell 일 때) — `scripts/` · `backend/target/backend-*.jar` · `frontend/` · `ai-server/`(소스 + `requirements-lock.txt`) + 루트의 `app-tree.env` · `app-manifest.tsv` |
+| `app-wheels.tar.gz` | `WITH_WHEELS=1` 일 때만 — 잠금 목록의 wheel (폐쇄망용, 수 GB) |
+| `baseline-app.tsv` · `baseline-env.tsv` | 실행 파일 기준선(jar · 트리 · pip 잠금 · 설치된 pip 목록 · 커밋 — 완전 일치) · 실행 환경 기준선(java · python · nginx · OpenSearch · Ollama · 드라이버 · GPU · 모델 — 차이는 WARN) |
+| `baseline-db.tsv` · `baseline-rag*.tsv` · `golden.json` | 데이터 · 색인 · LLM 응답 기준선 (아래 "이관 동등성 테스트") |
 
 복원은 **앱 첫 기동 전**에 한다 — 백엔드는 기동할 때 색인이 없으면 빈 색인을, DB 가 없으면 빈 DB 와
 관리자 계정을 만든다. `start.sh` 가 인프라 → `35-restore-package.sh` → 앱 순서로 이를 지킨다.
+
+### 실행 파일 이전 (Shell → Shell)
+
+타겟을 저장소에서 다시 빌드하면 "이전"이 아니라 "재구축"이고, 그 사이 pip 가 다른 torch 를 풀어 오면 임베딩이 달라져
+동등성이 깨진다. 그래서 소스에서 **돌고 있던 산출물을 그대로** 옮긴다.
+
+| 구성요소 | 옮기는 것 | 타겟이 하는 일 |
+| --- | --- | --- |
+| 백엔드 | 빌드된 `backend/target/backend-*.jar` | 빌드 없이 그대로 기동 (`./mvnw` 호출 안 함). 설정은 `/etc/widgetrag/application-local.yaml` 에 새로 생성 |
+| 프론트 | `frontend/` 디렉토리 통째 (빌드 없음) | nginx 설정을 타겟 경로로 다시 생성 |
+| AI 서버 | 소스 `ai-server/*.py` + `requirements-lock.txt`(소스 venv 의 `pip freeze --all`) | venv 를 **잠금 목록 그대로** 다시 만든다 — venv 자체는 절대 경로가 박혀 옮길 수 없다 |
+| 스크립트 | `scripts/` 전체 (진입물 · 생성기 · 검증기) | 패키지 안의 `bootstrap.sh` 로 갈아타 소스와 같은 스크립트로 기동 |
+| 환경변수 | `package.env` 의 `APP_LLM_TEMPERATURE` · `APP_LLM_SEED` · `APP_OLLAMA_MODEL` · `APP_TZ` (비밀값 제외) | 명시 지정이 없으면 소스 값을 기본값으로 쓴다 |
+| 유닛 · nginx 설정 · venv · 모델 · 미들웨어 | 옮기지 않음 | 생성기 · 버전 고정 설치 · digest 대조로 같게 만든다 |
+
+- 진입물의 동작: `bootstrap.sh` 는 `SNAPSHOT_URI` 또는 `PACKAGE_DIR` 에 `app-tree.tar.gz` 가 있으면 git clone 대신 그 트리를
+  `TARGET_DIR` 에 풀고(해시 · 파일 목록 대조) 그 안의 스크립트로 이어 간다. 이미 같은 트리가 있으면 건너뛰고, git clone 이
+  있으면 `.bak.<시각>` 으로 비켜 둔다 (`CODE_SOURCE=auto|package|git`). 트리 루트의 `app-tree.env` 가 "패키지 모드"의 표식이다.
+- 검증: `COMPARE=1` 의 T1-3 에 `app:jar` · `app:scripts` · `app:frontend` · `app:ai-server` · `app:pip-lock` · `app:pip-installed` · `app:code_ref`
+  행이 붙는다 (완전 일치). `runtime:*` 행(java · python · nginx · OpenSearch · Ollama · 드라이버 · GPU · 모델 digest)은 달라도 WARN.
+- 한계: 소스가 Compose(B)이면 실행 파일 층이 없어 Shell 타겟은 저장소 clone 으로 돌아간다(`app:mode` WARN) — B→A 의 코드 확보 방식은 **결정 필요**.
+  wheel 동봉(`WITH_WHEELS=1`)과 apt 패키지(.deb) 동봉 여부도 **결정 필요** — 지금은 잠금 목록 + 버전 고정 설치가 기본이다.
 타겟에 DB · 색인이 이미 있으면 복원을 건너뛴다 (재실행 안전, 덮어쓰려면 `FORCE_RESTORE=1`).
 관리자 비밀번호는 패키지에 넣지 않는다 — 이관된 DB 의 계정은 **소스의 비밀번호**로 로그인한다.
 
@@ -157,8 +192,8 @@ ssh -i <키> -N -L 8081:localhost:80 ubuntu@<IP>      # 이후 브라우저로 h
 
 | 서비스 | 의존성 설치 (`npm install` 상당) | 기동 (`npm run prod` 상당) |
 |---|---|---|
-| AI 서버 (FastAPI) | `python3.12 -m venv .venv && .venv/bin/pip install -r requirements_exaone.txt` | systemd `widgetrag-ai` (ExecStart=`.venv/bin/uvicorn main_exaone:app --host 0.0.0.0 --port 8000`) |
-| 백엔드 (Spring Boot) | `./mvnw package -DskipTests` | systemd `widgetrag-backend` (ExecStart=`java -jar target/backend-*.jar --spring.profiles.active=local`) |
+| AI 서버 (FastAPI) | `python3.12 -m venv .venv && .venv/bin/pip install -r requirements_exaone.txt` (이관 트리면 `requirements-lock.txt` 그대로) | systemd `widgetrag-ai` (ExecStart=`.venv/bin/uvicorn main_exaone:app --host 0.0.0.0 --port 8000`) |
+| 백엔드 (Spring Boot) | `./mvnw package -DskipTests` (이관 트리면 소스의 jar 그대로) | systemd `widgetrag-backend` (ExecStart=`java -jar target/backend-*.jar --spring.profiles.active=local --spring.config.additional-location=file:/etc/widgetrag/`) |
 | 프론트엔드 (정적 + /api 프록시) | 빌드 불필요 · `apt install nginx` | systemd `widgetrag-frontend` (ExecStart=`nginx -c /etc/widgetrag/frontend-nginx.conf -g 'daemon off;'`) |
 | LLM (Ollama) | `ollama pull gemma3:4b` (기본 — Gemma 약관 OLA 표기) | 시스템 서비스 (systemd) |
 | SQLite (임베디드) | 설치 불필요 — 백엔드 jar에 드라이버 포함 | 없음 (백엔드 프로세스 내장, DB 파일: `~/widgetrag-data/widgetrag.db`) |
@@ -172,7 +207,7 @@ ssh -i <키> -N -L 8081:localhost:80 ubuntu@<IP>      # 이후 브라우저로 h
 ./bootstrap.sh            # [진입점] 코드 확보 + NVIDIA 드라이버(재부팅 자동 재개) + install → start (기본 --start)
 ./10-install-tools.sh     # [Phase A] 도구 설치 (apt — JDK·Python·nginx·pigz·OpenSearch·Ollama)
 ./20-start-infra.sh       # [Phase B] OpenSearch(systemd) + Ollama + 모델 확보
-./30-setup-config.sh      # [Phase C] application-local.yaml 생성 (값이 바뀌었을 때만 백업 후 갱신)
+./30-setup-config.sh      # [Phase C] /etc/widgetrag/application-local.yaml 생성 (jar 밖 — 값이 바뀌었을 때만 백업 후 갱신)
 ./35-restore-package.sh   # [이관] 패키지 복원 — SNAPSHOT_URI 또는 ~/widgetrag-package, 없으면 건너뜀
 ./40-start-apps.sh        # [Phase D~F] AI 서버(venv) → 백엔드(java -jar) → 프론트(nginx)
 ./50-verify.sh            # 합격 기준 검증 (공용 ../verify.sh — results.csv 누적)
@@ -201,7 +236,9 @@ bash ../package.sh backup|fetch|restore   # 이관 패키지 도구 (두 형태 
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:8081,http://127.0.0.1:8081` | 터널 오리진 — Docker Compose 형태의 `.env` 와 같은 값 |
 | `PUBLIC_BASE_URL` | `http://localhost:8081` | 위젯 설치 코드의 `widget.js` 주소 기준 |
 | `STORAGE_DIR` | `~/widgetrag-data` | SQLite DB + CSV 업로드 파일 |
-| `PACKAGE_DIR` | `~/widgetrag-package` | 받은 이관 패키지 |
+| `PACKAGE_DIR` | `~/widgetrag-package` | 받은 이관 패키지 — rsync 로 여기 넣으면 `SNAPSHOT_URI` 없이 복원 · 트리 전개까지 된다 |
+| `CODE_SOURCE` | `auto` | `bootstrap.sh` 의 코드 확보 — `auto`: 패키지에 실행 파일 층이 있으면 그 트리, 없으면 clone · `package`: 트리만(없으면 실패) · `git`: 항상 clone |
+| `WITH_WHEELS` | `0` | `package.sh backup` 때 잠금 목록의 wheel 을 동봉 (폐쇄망용 — 수 GB) |
 | `PYTHON_BIN` | `python3.12` | venv 생성용 — 3.14는 torch 미지원 |
 
 ## 이 스크립트들이 막아 주는 함정
@@ -220,6 +257,8 @@ bash ../package.sh backup|fetch|restore   # 이관 패키지 도구 (두 형태 
 | `opensearch.yml` 을 일반 사용자로 읽음 | 못 읽은 걸 "없음"으로 보고 `path.repo` 를 덧붙이면 중복 키로 기동 실패 → `sudo grep` |
 | 타임존 미지정 | VM 이미지마다 UTC/KST 가 달라 기록 시각이 9시간 어긋남 → `TZ` 고정 + 검증 |
 | 첫 응답을 기준선으로 씀 | 모델 VRAM 로드가 섞임 → 콜드 1회 + 웜 `RUNS` 회로 p50/p95 |
+| 설정 파일이 jar 안에 구워짐 | `src/main/resources` 에 쓴 `application-local.yaml` 을 Maven 이 jar 에 넣어 소스 VM 의 절대 경로가 박힘 → `/etc/widgetrag/` 에 두고 `--spring.config.additional-location` 으로 읽음 (jar 를 그대로 옮길 수 있다) |
+| 타겟에서 pip 가 다른 torch 를 받음 | 임베딩 값이 달라 검색 · 답변이 갈림 → 소스 venv 의 `pip freeze --all` 잠금 목록으로 설치하고 `app:pip-installed` 행으로 증명 |
 
 ## 순수 형태 원칙
 
