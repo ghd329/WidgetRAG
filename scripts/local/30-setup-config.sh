@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # ===========================================================
-# [Phase C] 백엔드 설정 파일 생성 — application-local.yaml
+# [Phase C] 백엔드 설정 파일 생성 — /etc/widgetrag/application-local.yaml
 #
+#   - jar 밖(/etc/widgetrag/)에 둔다. 예전처럼 backend/src/main/resources 에 쓰면 Maven 이 jar 안에 구워 넣어
+#     이 VM 의 절대 경로(DB · 업로드 경로)가 jar 에 박힌다 — 그 jar 는 다른 VM 으로 옮겨 쓸 수 없다.
+#     백엔드 유닛이 --spring.config.additional-location 으로 읽으며, 같은 이름의 classpath 사본보다 우선한다.
 #   - example 파일을 복사하는 대신 필요한 값을 직접 생성한다.
 #     (example에는 필수 프로퍼티 widget.script-base-url이 누락되어 있어
 #      그대로 복사하면 기동이 실패한다 — 검증 과정에서 확인된 결함)
@@ -12,7 +15,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
-TARGET="$BACKEND_DIR/src/main/resources/application-local.yaml"
+TARGET="$APP_CONFIG_FILE"
 NEW="$(mktemp)"
 trap 'rm -f "$NEW"' EXIT
 
@@ -42,11 +45,19 @@ if [ -f "$TARGET" ] && cmp -s "$NEW" "$TARGET"; then
   log "설정 변경 없음: $TARGET"
 else
   if [ -f "$TARGET" ]; then
-    cp "$TARGET" "$TARGET.bak.$(date +%Y%m%d%H%M%S)"
+    sudo cp "$TARGET" "$TARGET.bak.$(date +%Y%m%d%H%M%S)"
     warn "설정이 바뀌어 기존 파일을 백업하고 갱신함"
   fi
-  cp "$NEW" "$TARGET"
+  sudo install -D -m 644 -o root -g root "$NEW" "$TARGET"   # root:644 — 비밀값 없음, 백엔드(일반 사용자)가 읽는다
   log "생성 완료: $TARGET"
+fi
+
+# 예전 위치(소스 트리 안)에 남은 설정은 지운다 — 남겨 두면 다음 빌드 때 jar 에 다시 구워진다.
+# 패키지로 전개한 트리에는 backend/src 자체가 없으므로 있을 때만.
+OLD="$BACKEND_DIR/src/main/resources/application-local.yaml"
+if [ -f "$OLD" ]; then
+  rm -f "$OLD" "$OLD".bak.*
+  warn "소스 트리 안의 구 설정 제거: $OLD — 이미 빌드된 jar 에 구워진 사본은 ./40-start-apps.sh --rebuild 로 없앤다"
 fi
 
 mkdir -p "$STORAGE_DIR"

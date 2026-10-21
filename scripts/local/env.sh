@@ -86,6 +86,11 @@ LLM_SEED="${LLM_SEED:-}"          # 비우면 미지정(비결정적)
 # "실행 파일·환경변수"가 표준 위치(유닛 파일·EnvironmentFile)에 드러나게 하기 위함.
 WIDGETRAG_ENV_FILE="/etc/widgetrag/widgetrag.env"
 SYSTEMD_UNITS=(widgetrag-ai widgetrag-backend widgetrag-frontend)
+# 백엔드 설정(application-local.yaml)은 jar 밖(/etc/widgetrag/)에 둔다 — backend/src/main/resources 에 쓰면 빌드 때
+# jar 안에 이 VM 의 절대 경로가 구워져 jar 를 다른 VM 으로 옮길 수 없다. 백엔드 유닛이
+# --spring.config.additional-location=file:$APP_CONFIG_DIR/ 로 읽는다 (끝 슬래시 = 디렉토리, classpath 사본보다 우선).
+APP_CONFIG_DIR="/etc/widgetrag"
+APP_CONFIG_FILE="$APP_CONFIG_DIR/application-local.yaml"
 
 # --- 경로 ---
 STORAGE_DIR="${STORAGE_DIR:-$HOME/widgetrag-data}"   # CSV 업로드 파일 저장 경로

@@ -30,5 +30,5 @@ export PORT_FRONTEND STORAGE_DIR SQLITE_DB_FILE APP_TZ OLLAMA_MODEL
 export PACKAGE_DIR PORT_AI PORT_OLLAMA VENV_DIR
 export ADMIN_EMAIL="$WIDGETRAG_ADMIN_EMAIL"
 export LOCAL_ADMIN_PASSWORD="$WIDGETRAG_ADMIN_PASSWORD"
-export FK_CONFIG_FILE="$BACKEND_DIR/src/main/resources/application-local.yaml"
+export FK_CONFIG_FILE="$APP_CONFIG_FILE"   # 30-setup-config.sh 가 /etc/widgetrag/ 에 생성 (root:644 — sudo 불필요)
 exec bash "$PROJECT_ROOT/scripts/verify.sh" "$@"

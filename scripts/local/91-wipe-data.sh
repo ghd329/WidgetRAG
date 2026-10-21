@@ -12,6 +12,7 @@
 #     - Ollama 모델 (이관 대상 아님 — 재다운로드 가능하나 삭제할 이유 없음)
 #     - scripts/local/.admin-password (이 환경에서 발급한 값 — 이관된 DB 의 계정은 소스 비밀번호)
 #     - 소스코드·설정 스크립트, 스냅샷 저장소(/var/lib/opensearch/snapshots), 받아둔 이관 패키지($PACKAGE_DIR)
+#     - /etc/widgetrag/ 의 설정 · 환경변수 파일 (데이터가 아니라 설정 — 30 · 40 이 다시 만든다)
 #
 #   사용법:
 #     ./91-wipe-data.sh --yes     # --yes 없이는 안내만 출력하고 아무것도 지우지 않는다

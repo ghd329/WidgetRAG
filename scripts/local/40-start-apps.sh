@@ -8,7 +8,8 @@
 #       표준 위치(/etc/systemd/system, /etc/widgetrag/widgetrag.env)에 드러난다
 #
 #   - 여러 번 실행해도 안전(멱등) — 유닛/환경파일은 매번 재생성 후 재기동
-#   - 백엔드는 ./mvnw package 후 java -jar 실행
+#   - 백엔드는 ./mvnw package 후 java -jar 실행. 설정은 jar 밖(/etc/widgetrag/application-local.yaml)에서
+#     --spring.config.additional-location 으로 읽는다 (jar 에 이 VM 의 경로가 구워지지 않게 — 이관 때 jar 를 그대로 옮긴다)
 #   - 옵션: --rebuild  (백엔드 jar 강제 재빌드)
 # ===========================================================
 set -euo pipefail
@@ -20,7 +21,7 @@ REBUILD="${1:-}"
 # 관계형 DB는 SQLite 임베디드(백엔드가 파일로 직접 접근)라 사전 기동 점검 대상이 아님
 port_listening "$PORT_OPENSEARCH" || die "OpenSearch(:$PORT_OPENSEARCH) 미기동 — ./20-start-infra.sh 먼저"
 port_listening "$PORT_OLLAMA"     || die "Ollama(:$PORT_OLLAMA) 미기동 — ./20-start-infra.sh 먼저"
-[ -f "$BACKEND_DIR/src/main/resources/application-local.yaml" ] || die "설정 파일 없음 — ./30-setup-config.sh 먼저"
+[ -f "$APP_CONFIG_FILE" ] || die "설정 파일 없음 ($APP_CONFIG_FILE) — ./30-setup-config.sh 먼저"
 
 # ---------- 공통 준비 1. AI 서버 venv ----------
 command -v "$PYTHON_BIN" >/dev/null 2>&1 || die "$PYTHON_BIN 없음 — 10-install-tools.sh 먼저 (3.14로 venv를 만들면 torch 설치 실패)"
@@ -92,7 +93,7 @@ Type=simple
 User=$USER
 WorkingDirectory=$BACKEND_DIR
 EnvironmentFile=$WIDGETRAG_ENV_FILE
-ExecStart=$JAVA_HOME/bin/java -jar $JAR --spring.profiles.active=local
+ExecStart=$JAVA_HOME/bin/java -jar $JAR --spring.profiles.active=local --spring.config.additional-location=file:$APP_CONFIG_DIR/
 Restart=on-failure
 RestartSec=5
 
