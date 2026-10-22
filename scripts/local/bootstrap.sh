@@ -60,6 +60,9 @@
 #     NO_START=1    준비만 하고 기동은 안 함 (= --install)
 #     OLLAMA_VERSION Ollama 고정 버전 (기본 0.34.3 — Docker Compose llm 이미지와 같게, env.sh · 빈 값이면 최신)
 #     COMPARE=1     마지막 검증에서 이관 동등성까지 대조 (GOLDEN_CHECK=0 이면 LLM 골든 대조 생략)
+#     WIDGETRAG_ADMIN_PASSWORD  관리자 비밀번호 (기본값은 env.sh — Docker Compose 형태와 같다).
+#                   이관된 타겟은 소스 DB 의 계정을 그대로 쓰므로 같은 값으로 로그인된다. 운영에 쓸 때는 앞에 붙여 바꾼다 —
+#                   계정은 백엔드가 처음 뜰 때(재부팅 뒤) 한 번 만들어지므로 재개 때도 넘긴다.
 #
 #   재개 유닛 로그: sudo journalctl -u widgetrag-bootstrap-resume -f
 # ===========================================================
@@ -84,7 +87,7 @@ RESUME_ENV="/etc/widgetrag/bootstrap-resume.env"
 # 재실행 · 재부팅 재개 때 넘겨야 하는 값 — 설정된 것만 넘긴다
 PASS_VARS=(REPO_URL BRANCH COMMIT TARGET_DIR SNAPSHOT_URI S3_ENDPOINT_URL NO_DRIVER FORCE_RESTORE
            LLM_TEMPERATURE LLM_SEED APP_TZ OLLAMA_MODEL OLLAMA_VERSION FORM RUNS REQUIRE_DATA VERIFY_ADMIN_PASSWORD
-           COMPARE GOLDEN_CHECK EXPECT_SERVICE_COUNT CODE_SOURCE PACKAGE_DIR
+           WIDGETRAG_ADMIN_PASSWORD COMPARE GOLDEN_CHECK EXPECT_SERVICE_COUNT CODE_SOURCE PACKAGE_DIR
            AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_DEFAULT_REGION)
 
 # 이관 도구로 실행되면 TTY 가 없고 출력이 로그로 수집된다 — 그때는 색상 제어문자를 쓰지 않는다.

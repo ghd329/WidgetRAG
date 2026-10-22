@@ -63,18 +63,17 @@ OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:-24h}"
 
 # --- 관리자 계정 (백엔드 최초 기동 시 생성) ---
 WIDGETRAG_ADMIN_EMAIL="${WIDGETRAG_ADMIN_EMAIL:-admin@widgetrag.com}"
-# 비밀번호 기본값을 저장소에 두지 않는다 (실증 환경은 "운영에 준하는" 구성이 요구됨).
-# 미지정 시 최초 실행에서 무작위 생성해 .admin-password(600)에 저장, 이후 실행은 재사용(멱등).
+# 비밀번호 기본값은 아래 한 줄이다 — 소스 · 타겟이 같은 값을 써서 이관 뒤 로그인 판정이 그대로 맞는다
+# (Docker Compose 형태의 .env 기본값과 같다). 운영에 쓸 때는 WIDGETRAG_ADMIN_PASSWORD 로 바꾼다.
+# 쓴 값은 .admin-password(600)에 저장해 다음 실행(재기동 · --rebuild · 검증)이 변수 없이 돌아도 같은 값을 쓴다.
+# 저장된 값이 있으면 그것이 이 환경의 비밀번호다 — 계정은 최초 1회만 만들어져, 나중에 준 값으로는 바뀌지 않는다.
 ADMIN_PW_FILE="$SCRIPT_DIR/.admin-password"
-if [ -z "${WIDGETRAG_ADMIN_PASSWORD:-}" ]; then
-  if [ -f "$ADMIN_PW_FILE" ]; then
-    WIDGETRAG_ADMIN_PASSWORD="$(cat "$ADMIN_PW_FILE")"
-  else
-    # (die는 아래 공통 함수 절에서 정의되므로 여기서는 인라인 처리)
-    command -v openssl >/dev/null 2>&1 || { printf '[widgetrag][FAIL] openssl 필요 (관리자 비밀번호 자동 생성) — 또는 WIDGETRAG_ADMIN_PASSWORD 지정\n' >&2; exit 1; }
-    WIDGETRAG_ADMIN_PASSWORD="$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-20)"
-    ( umask 177 && printf '%s' "$WIDGETRAG_ADMIN_PASSWORD" > "$ADMIN_PW_FILE" )
-  fi
+if [ -z "${WIDGETRAG_ADMIN_PASSWORD:-}" ] && [ -f "$ADMIN_PW_FILE" ]; then
+  WIDGETRAG_ADMIN_PASSWORD="$(cat "$ADMIN_PW_FILE")"
+fi
+WIDGETRAG_ADMIN_PASSWORD="${WIDGETRAG_ADMIN_PASSWORD:-admin_password}"
+if [ ! -f "$ADMIN_PW_FILE" ]; then
+  ( umask 177 && printf '%s' "$WIDGETRAG_ADMIN_PASSWORD" > "$ADMIN_PW_FILE" )
 fi
 
 # --- 콘솔 접속 오리진 · 위젯 공개 주소 (Docker Compose 형태의 .env 기본값과 같게) ---

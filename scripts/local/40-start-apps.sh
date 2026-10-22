@@ -191,7 +191,7 @@ wait_for_http "http://localhost:$PORT_FRONTEND/widget.js"      "프론트 /api �
 
 echo
 log "앱 계층 기동 완료 (systemd 유닛)"
-echo "  관리자 계정       : $WIDGETRAG_ADMIN_EMAIL (비밀번호: 환경변수 미지정 시 $ADMIN_PW_FILE 에 자동 생성됨)"
+echo "  관리자 계정       : $WIDGETRAG_ADMIN_EMAIL (비밀번호: 미지정 시 env.sh 기본값 — $ADMIN_PW_FILE 에 저장된 값을 씀)"
 echo "  [로컬 PC] 터널    : ssh -N -L 8081:localhost:$PORT_FRONTEND ubuntu@<IP>   (Docker Compose 형태와 같은 터널)"
 echo "  콘솔(가입/로그인) : http://localhost:8081/login/company-signup.html"
 echo "  데모샵(위젯)      : http://localhost:8081/demo-shop/demo-living.html?client=<발급코드>"

@@ -28,7 +28,7 @@
 #        daemon-reload 생략). ★ 2026-10-16 T-002: 재개 직후 파일을 지우고 reload 하면 systemd 가 실행 중인
 #        유닛의 설정(TimeoutStartSec=0)을 잃고 기본 90초 타임아웃으로 설치 도중 프로세스를 종료시켰다.
 #     3) Docker 엔진 + Compose v2.24+ + nvidia-container-toolkit → 컨테이너 GPU 통과 확인
-#     4) 배포 파일 수신 · .env 생성(관리자 비밀번호 무작위 발급)
+#     4) 배포 파일 수신 · .env 생성(관리자 비밀번호 — ADMIN_PASSWORD 를 주면 그 값, 아니면 기본값)
 #     5) 이미지 pull → SNAPSHOT_URI 가 있으면 패키지 수신 → 앱보다 먼저 DB · 색인 복원 → 전체 기동
 #     6) 합격 기준 검증 (verify.sh — Shell 설치형과 같은 판정 · 같은 결과표)
 #
@@ -50,6 +50,9 @@
 #     NO_START=1      준비만 하고 기동은 안 함
 #     SKIP_VERIFY=1   마지막 검증을 건너뜀
 #     COMPARE=1       마지막 검증에서 이관 동등성까지 대조 (GOLDEN_CHECK=0 이면 LLM 골든 대조 생략)
+#     ADMIN_PASSWORD  관리자 비밀번호 (기본값은 아래 .env 생성부 — Shell 설치형과 같다). .env 를 처음 만들 때만
+#                     쓴다 — 계정은 최초 기동 때 한 번 만들어진다. 이관된 타겟은 소스 DB 의 계정을 쓰므로 같은 값으로 로그인된다.
+#                     운영에 쓸 때는 바꾼다.
 #
 #   기동 후: 모델(gemma3:4b, 약 3.3GB)은 llm 컨테이너가 자동 pull — 최초 수 분 소요.
 #   재부팅 재개 로그: sudo journalctl -u widgetrag-compose-resume -f
@@ -72,7 +75,7 @@ NVIDIA_DRIVER_SERIES="${NVIDIA_DRIVER_SERIES-595}"
 
 # 재실행 · 재부팅 재개 때 넘겨야 하는 값 — 사람이 지정한 것만 넘긴다 (기본값 적용 전에 판단)
 PASS_VARS=(BRANCH REPO_RAW WORK_DIR REGISTRY_PREFIX IMAGE_TAG SNAPSHOT_URI S3_ENDPOINT_URL FORCE_RESTORE NO_DRIVER
-           NO_START SKIP_VERIFY LLM_TEMPERATURE LLM_SEED FORM RUNS VERIFY_ADMIN_PASSWORD COMPARE GOLDEN_CHECK
+           NO_START SKIP_VERIFY LLM_TEMPERATURE LLM_SEED FORM RUNS VERIFY_ADMIN_PASSWORD ADMIN_PASSWORD COMPARE GOLDEN_CHECK
            EXPECT_SERVICE_COUNT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_DEFAULT_REGION)
 
 # 이관 도구로 실행되면 TTY 가 없고 출력이 로그로 수집된다 — 그때는 색상 제어문자를 쓰지 않는다.
@@ -164,6 +167,7 @@ REGISTRY_PREFIX_ARG="${REGISTRY_PREFIX:-}"
 IMAGE_TAG_ARG="${IMAGE_TAG:-}"
 LLM_TEMPERATURE_ARG="${LLM_TEMPERATURE:-}"
 LLM_SEED_ARG="${LLM_SEED:-}"
+ADMIN_PASSWORD_ARG="${ADMIN_PASSWORD:-}"
 mapfile -d '' RESUME_ARGS < <(pass_env)       # 재부팅 재개에 넘길 값 (기본값 적용 전)
 REGISTRY_PREFIX="${REGISTRY_PREFIX:-yjp8842}"
 IMAGE_TAG="${IMAGE_TAG:-v0.3.1}"
@@ -401,14 +405,18 @@ if [ -f .env ]; then
     if grep -q "^$k=" .env; then sed -i "s|^$k=.*|$k=$v|" .env; else echo "$k=$v" >> .env; fi
     log ".env 갱신: $k=$v (명시 지정)"
   done
+  if [ -n "$ADMIN_PASSWORD_ARG" ] && [ "$(env_get ADMIN_PASSWORD)" != "$ADMIN_PASSWORD_ARG" ]; then
+    warn ".env 의 ADMIN_PASSWORD 는 그대로 둔다 — 관리자 계정은 최초 기동 때 한 번만 만들어져 .env 를 바꿔도 비밀번호가 바뀌지 않는다"
+  fi
   log ".env 유지 — 적용값: REGISTRY_PREFIX=$(env_get REGISTRY_PREFIX) IMAGE_TAG=$(env_get IMAGE_TAG)"
 else
   EMBED_DEV="$(nvidia-smi >/dev/null 2>&1 && echo cuda || echo cpu)"
-  log ".env 생성 (관리자 비밀번호 무작위 발급, EMBEDDING_DEVICE=$EMBED_DEV)"
+  if [ -n "$ADMIN_PASSWORD_ARG" ]; then ADMIN_PW_NOTE="명시 지정"; else ADMIN_PW_NOTE="기본값"; fi
+  log ".env 생성 (관리자 비밀번호 $ADMIN_PW_NOTE, EMBEDDING_DEVICE=$EMBED_DEV)"
   cat > .env <<EOF
 # scripts/compose/deploy.sh 가 생성 — 무인 검증 기본값
 ADMIN_EMAIL=admin@widgetrag.com
-ADMIN_PASSWORD=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-20)
+ADMIN_PASSWORD=${ADMIN_PASSWORD_ARG:-admin_password}
 # 브라우저는 SSH 터널(-L 8081:localhost:80)로 접속한다 — Shell 설치형과 같은 터널·같은 오리진
 PUBLIC_BASE_URL=http://localhost:8081
 CORS_ALLOWED_ORIGINS=http://localhost:8081,http://127.0.0.1:8081

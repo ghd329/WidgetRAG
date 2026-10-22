@@ -226,7 +226,7 @@ bash ../package.sh backup|fetch|restore   # 이관 패키지 도구 (두 형태 
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
-| `WIDGETRAG_ADMIN_PASSWORD` | (미지정 시 무작위 생성) | 관리자 계정 비밀번호 — 최초 실행에서 자동 생성되어 `scripts/local/.admin-password`(600)에 저장·재사용 |
+| `WIDGETRAG_ADMIN_PASSWORD` | `env.sh` 기본값 | 관리자 계정 비밀번호 — 쓴 값은 `scripts/local/.admin-password`(600)에 저장 · 재사용하고, 이미 저장된 값이 있으면 그것을 쓴다. `bootstrap.sh` 앞에 붙이면 재부팅 재개까지 넘어간다 |
 | `OLLAMA_MODEL` | `gemma3:4b` | 레지스트리 차단 시 HuggingFace 경유 자동 폴백 |
 | `OLLAMA_VERSION` | `0.34.3` | Ollama 고정 버전 — Docker Compose llm 이미지와 같게 (교차 이관 LLM 응답 일치의 전제). 빈 값이면 최신 |
 | `OLLAMA_KEEP_ALIVE` | `24h` | 모델을 VRAM 에 올려 둔 채 유지하는 시간 (systemd 드롭인으로 적용). 기동 때 모델을 미리 올려 두므로 첫 질문에 적재 시간이 붙지 않고, 대량 업로드 뒤에도 모델이 CPU 로 밀리지 않는다 |

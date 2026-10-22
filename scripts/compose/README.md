@@ -45,7 +45,7 @@ docker-compose.images.yml     build: 제거 + image: 지정 (REGISTRY_PREFIX · 
 package.sh                    이관 패키지 수신 · 복원 · 생성 (두 형태 공용)
 verify.sh                     합격 기준 검증 (두 형태 공용)
 migcheck.py                   이관 동등성 기준선 · 비교 계산 (package.sh · verify.sh 가 부름)
-.env                          생성됨 — 관리자 비밀번호 무작위 발급 (600)
+.env                          생성됨 — 관리자 비밀번호는 ADMIN_PASSWORD 를 주면 그 값, 아니면 기본값 (600)
 snapshots/                    OpenSearch path.repo(/mnt/snapshots) — 색인 스냅샷을 주고받는 곳
 ```
 
@@ -91,6 +91,7 @@ toolkit 이 없거나 설정이 틀리면 **에러 없이 CPU 로 폴백한다.*
 | `NO_DRIVER=1` · `NO_START=1` · `SKIP_VERIFY=1` | — | 드라이버 생략 · 준비만 · 검증 생략 |
 | `NVIDIA_DRIVER_SERIES` | `595` | 설치할 드라이버 시리즈 (`ubuntu-drivers install nvidia:595`). 빈 값이면 추천판, 지정판이 구성되지 않으면 추천판으로 진행 — Shell 설치형과 같은 기본값 · 같은 판정(패키지 상태 · 모듈 파일) |
 | `COMPARE=1` · `GOLDEN_CHECK=0` | `0` · `1` | 마지막 검증에서 이관 동등성 대조 · 그중 LLM 골든 대조만 생략 (아래 절) |
+| `ADMIN_PASSWORD` | `deploy.sh` 기본값 | 관리자 비밀번호 — `.env` 를 처음 만들 때만 쓴다 (계정은 최초 기동 때 한 번 만들어진다). 재부팅 재개까지 넘어간다 |
 | `TARGET_USER` | uid 1000 | root 로 실행될 때 배포할 사용자 |
 
 ## 이관 도구 연동
