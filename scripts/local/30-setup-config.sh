@@ -39,6 +39,15 @@ widgetrag:
 widget:
   # 임베드 스크립트 태그 발급 시 안내되는 widget.js 공개 URL (프론트가 backend 로 프록시)
   script-base-url: $PUBLIC_BASE_URL/widget.js
+
+server:
+  servlet:
+    session:
+      cookie:
+        # 콘솔 세션 쿠키 — Docker Compose 형태와 같은 값 (env.sh 의 SESSION_SECURE · SESSION_SAME_SITE).
+        # HTTPS 없이 공인 IP 로 콘솔을 열어도 세션이 저장되게. HTTPS 를 붙이면 secure: true · same-site: none
+        same-site: $SESSION_SAME_SITE
+        secure: $SESSION_SECURE
 EOF
 
 if [ -f "$TARGET" ] && cmp -s "$NEW" "$TARGET"; then

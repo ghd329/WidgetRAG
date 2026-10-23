@@ -81,6 +81,13 @@ fi
 CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-http://localhost:8081,http://127.0.0.1:8081}"
 PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-http://localhost:8081}"
 
+# --- 세션 쿠키 (Docker Compose 형태의 .env 기본값과 같게) ---
+# application.yaml 기본값(same-site=none · secure=true)은 HTTPS 를 전제한다. 브라우저는 Secure 쿠키를 HTTPS 나 localhost 에서만
+# 저장하므로, 터널 없이 공인 IP 의 HTTP 로 콘솔을 열면 로그인 뒤 세션이 저장되지 않아 콘솔 API 가 모두 거절된다
+# (2026-10-23 이관 타겟에서 확인 — 데모샵 채팅은 쿠키를 쓰지 않아 동작). HTTPS 종단을 붙이면 true · none 으로 되돌린다.
+SESSION_SECURE="${SESSION_SECURE:-false}"
+SESSION_SAME_SITE="${SESSION_SAME_SITE:-lax}"
+
 # --- 타임존 ---
 # 엔티티 시각(LocalDateTime.now)은 JVM 기본 타임존 = 프로세스의 TZ 를 따른다. VM 이미지마다
 # 기본값이 달라(UTC/KST) 명시하지 않으면 이관 전후로 기록 시각이 9시간 갈린다 (LexAI 와 같은 기준).
@@ -134,6 +141,13 @@ else
   log()  { printf '[widgetrag] %s\n' "$*"; }
   warn() { printf '[widgetrag][WARN] %s\n' "$*"; }
   die()  { printf '[widgetrag][FAIL] %s\n' "$*" >&2; exit 1; }
+fi
+
+# 세션 쿠키 값 검사 (기본값은 위 「세션 쿠키」 — die 가 정의된 뒤라 여기서)
+case "$SESSION_SECURE" in true|false) ;; *) die "SESSION_SECURE 는 true 또는 false 여야 합니다: $SESSION_SECURE" ;; esac
+case "$SESSION_SAME_SITE" in lax|strict|none) ;; *) die "SESSION_SAME_SITE 는 lax · strict · none 중 하나여야 합니다: $SESSION_SAME_SITE" ;; esac
+if [ "$SESSION_SAME_SITE" = none ] && [ "$SESSION_SECURE" != true ]; then
+  die "SESSION_SAME_SITE=none 은 SESSION_SECURE=true(HTTPS)와 함께만 쓸 수 있습니다 — 브라우저가 쿠키를 거부합니다"
 fi
 
 apt_install() {  # apt_install <패키지...> — 비대화형 (sudo 가 DEBIAN_FRONTEND 를 지우므로 env 로 넘긴다)

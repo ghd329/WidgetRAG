@@ -175,7 +175,8 @@ curl -fsSL <bootstrap 주소> | SNAPSHOT_URI=s3://버킷/widgetrag/<시각> LLM_
 
 ## 접속
 
-외부 포트는 열지 않는다(보안 그룹은 22 만). 두 형태 모두 같은 터널 하나로 들어온다.
+외부 포트는 열지 않는다(보안 그룹은 22 만). 두 형태 모두 같은 터널 하나로 들어온다. 보안 그룹에 80 을 열어 공인 IP 로 직접 들어와도
+콘솔이 동작한다 — 세션 쿠키를 HTTP 에서도 저장되게 둔다(`SESSION_SECURE=false` · `SESSION_SAME_SITE=lax`, Docker Compose 형태와 같은 값).
 
 ```bash
 ssh -i <키> -N -L 8081:localhost:80 ubuntu@<IP>      # 이후 브라우저로 http://localhost:8081
@@ -235,6 +236,7 @@ bash ../package.sh backup|fetch|restore   # 이관 패키지 도구 (두 형태 
 | `PORT_FRONTEND` | `80` | 5500/5501/3000 은 쓰지 말 것 — `api.js` 가 로컬 개발로 보고 `:8080` 을 직접 부른다 |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:8081,http://127.0.0.1:8081` | 터널 오리진 — Docker Compose 형태의 `.env` 와 같은 값 |
 | `PUBLIC_BASE_URL` | `http://localhost:8081` | 위젯 설치 코드의 `widget.js` 주소 기준 |
+| `SESSION_SECURE` · `SESSION_SAME_SITE` | `false` · `lax` | 콘솔 세션 쿠키 — Docker Compose 형태의 `.env` 와 같은 값. HTTPS 종단을 붙이면 `true` · `none` (`none` 은 `true` 와 함께만) |
 | `STORAGE_DIR` | `~/widgetrag-data` | SQLite DB + CSV 업로드 파일 |
 | `PACKAGE_DIR` | `~/widgetrag-package` | 받은 이관 패키지 — rsync 로 여기 넣으면 `SNAPSHOT_URI` 없이 복원 · 트리 전개까지 된다 |
 | `CODE_SOURCE` | `auto` | `bootstrap.sh` 의 코드 확보 — `auto`: 패키지에 실행 파일 층이 있으면 그 트리, 없으면 clone · `package`: 트리만(없으면 실패) · `git`: 항상 clone |
