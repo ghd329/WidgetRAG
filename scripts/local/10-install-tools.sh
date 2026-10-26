@@ -13,7 +13,8 @@ log "apt 패키지 설치"
 sudo apt-get update -y
 # nginx — 프론트(정적 화면 + /api 프록시, Docker Compose 형태와 같은 nginx.conf)
 # pigz  — 이관 패키지 압축을 코어 수만큼 병렬로 (scripts/package.sh)
-apt_install openjdk-17-jdk python3.12 python3.12-venv curl lsof sqlite3 nginx pigz
+# gnupg — 아래 OpenSearch 저장소 키를 gpg --dearmor 로 넣는다. 들어 있지 않은 Ubuntu 이미지가 있다 (2026-10-23 ami-058c8c1efe6b29f19)
+apt_install openjdk-17-jdk python3.12 python3.12-venv curl lsof sqlite3 nginx pigz gnupg
 
 # 배포판 nginx 서비스는 끈다 — 80 포트는 widgetrag-frontend 유닛(40-start-apps.sh)이 쓴다
 sudo systemctl disable --now nginx >/dev/null 2>&1 || true
