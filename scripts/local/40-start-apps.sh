@@ -24,7 +24,13 @@ port_listening "$PORT_OLLAMA"     || die "Ollama(:$PORT_OLLAMA) 미기동 — ./
 [ -f "$APP_CONFIG_FILE" ] || die "설정 파일 없음 ($APP_CONFIG_FILE) — ./30-setup-config.sh 먼저"
 
 # ---------- 공통 준비 1. AI 서버 venv ----------
-command -v "$PYTHON_BIN" >/dev/null 2>&1 || die "$PYTHON_BIN 없음 — 10-install-tools.sh 먼저 (3.14로 venv를 만들면 torch 설치 실패)"
+command -v "$PYTHON_BIN" >/dev/null 2>&1 || die "$PYTHON_BIN 없음 — 10-install-tools.sh 먼저"
+PY_VER="$("$PYTHON_BIN" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+case "$PY_VER" in
+  3.1[0-3]) ;;
+  3.[0-9]) die "$PYTHON_BIN 이 Python $PY_VER — torch · sentence-transformers 는 3.10 이상이 필요 (PYTHON_BIN 으로 다른 파이썬 지정)" ;;
+  *) warn "$PYTHON_BIN 이 Python $PY_VER — 3.10 ~ 3.13 밖이라 확인되지 않은 버전 (torch 휠이 없으면 의존성 설치에서 멈춘다)" ;;
+esac
 if [ ! -x "$VENV_DIR/bin/python" ]; then
   log "venv 생성 ($PYTHON_BIN)"
   "$PYTHON_BIN" -m venv "$VENV_DIR"

@@ -45,7 +45,7 @@
 #     LLM_TEMPERATURE · LLM_SEED   동등성 비교용 결정적 설정 (예: 0 · 42) — .env 에 반영
 #     TARGET_USER     root 로 실행될 때 배포할 사용자 (기본 uid 1000)
 #     NO_DRIVER=1     드라이버 단계 건너뜀 (GPU 이미지 · GPU 없는 검증 VM)
-#     NVIDIA_DRIVER_SERIES  설치할 드라이버 시리즈 (기본 595 → ubuntu-drivers install nvidia:595). 빈 값이면 추천판.
+#     NVIDIA_DRIVER_SERIES  설치할 드라이버 시리즈 (기본 빈 값 = ubuntu-drivers 추천판). 595 처럼 주면 nvidia:595 로 고정.
 #                     Shell 설치형 bootstrap.sh 와 같은 기본값 — 소스 · 타겟을 같은 버전으로 맞추기 위함.
 #     NO_START=1      준비만 하고 기동은 안 함
 #     SKIP_VERIFY=1   마지막 검증을 건너뜀
@@ -70,8 +70,8 @@ RAW_BASE="$REPO_RAW/$BRANCH"
 SELF_URL="$RAW_BASE/scripts/compose/deploy.sh"
 RESUME_UNIT="widgetrag-compose-resume"
 RESUME_ENV="/etc/widgetrag/compose-resume.env"
-# 빈 값(NVIDIA_DRIVER_SERIES=)은 "추천판" 이라는 뜻이라 ':-' 가 아니라 '-' 로 기본값을 준다
-NVIDIA_DRIVER_SERIES="${NVIDIA_DRIVER_SERIES-595}"
+# 빈 값 = "추천판" (기본). 595 처럼 주면 그 시리즈로 고정
+NVIDIA_DRIVER_SERIES="${NVIDIA_DRIVER_SERIES-}"
 
 # 재실행 · 재부팅 재개 때 넘겨야 하는 값 — 사람이 지정한 것만 넘긴다 (기본값 적용 전에 판단)
 PASS_VARS=(BRANCH REPO_RAW WORK_DIR REGISTRY_PREFIX IMAGE_TAG SNAPSHOT_URI S3_ENDPOINT_URL FORCE_RESTORE NO_DRIVER

@@ -89,7 +89,7 @@ toolkit 이 없거나 설정이 틀리면 **에러 없이 CPU 로 폴백한다.*
 | `LLM_TEMPERATURE` · `LLM_SEED` | `0.7` · — | 동등성 비교용 결정적 설정 — 지정하면 `.env` 에 반영 |
 | `OLLAMA_KEEP_ALIVE` | `24h` | llm 컨테이너가 모델을 VRAM 에 올려 둔 채 유지하는 시간 (`.env` → compose 환경). Shell 설치형과 같은 값 |
 | `NO_DRIVER=1` · `NO_START=1` · `SKIP_VERIFY=1` | — | 드라이버 생략 · 준비만 · 검증 생략 |
-| `NVIDIA_DRIVER_SERIES` | `595` | 설치할 드라이버 시리즈 (`ubuntu-drivers install nvidia:595`). 빈 값이면 추천판, 지정판이 구성되지 않으면 추천판으로 진행 — Shell 설치형과 같은 기본값 · 같은 판정(패키지 상태 · 모듈 파일) |
+| `NVIDIA_DRIVER_SERIES` | (빈 값) | 설치할 드라이버 시리즈. 빈 값이면 `ubuntu-drivers` 추천판, `595` 처럼 주면 `nvidia:595` 로 고정(구성되지 않으면 추천판으로 진행) — Shell 설치형과 같은 기본값 · 같은 판정(패키지 상태 · 모듈 파일) |
 | `COMPARE=1` · `GOLDEN_CHECK=0` | `0` · `1` | 마지막 검증에서 이관 동등성 대조 · 그중 LLM 골든 대조만 생략 (아래 절) |
 | `ADMIN_PASSWORD` | `deploy.sh` 기본값 | 관리자 비밀번호 — `.env` 를 처음 만들 때만 쓴다 (계정은 최초 기동 때 한 번 만들어진다). 재부팅 재개까지 넘어간다 |
 | `TARGET_USER` | uid 1000 | root 로 실행될 때 배포할 사용자 |

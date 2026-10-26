@@ -126,8 +126,8 @@ BACKEND_DIR="$PROJECT_ROOT/backend"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
 VENV_DIR="$AI_DIR/.venv"
 
-# --- Python (AI 서버 venv 생성용 — 3.12 필수, 3.14는 torch 미지원) ---
-PYTHON_BIN="${PYTHON_BIN:-python3.12}"
+# --- Python (AI 서버 venv 생성용 — OS 기본 python3: 22.04 는 3.10, 24.04 는 3.12. 3.10 미만은 torch 미지원) ---
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 mkdir -p "$LOG_DIR" "$PID_DIR"
 

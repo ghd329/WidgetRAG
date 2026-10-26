@@ -42,7 +42,7 @@ curl -fsSL <위 주소> | SNAPSHOT_URI=s3://버킷/widgetrag/20260924-1030 bash
 | `S3_ENDPOINT_URL` | — | S3 호환 스토리지 주소 (NCP 등) |
 | `FORCE_RESTORE=1` | — | DB · 색인이 이미 있어도 패키지로 덮어씀 (기본은 건너뜀) |
 | `NO_DRIVER=1` | — | GPU 이미지를 쓰는 경우 드라이버 설치 생략 |
-| `NVIDIA_DRIVER_SERIES` | `595` | 설치할 드라이버 시리즈 (`ubuntu-drivers install nvidia:595`). 소스 · 타겟을 같은 버전으로 맞추기 위한 고정값 — 빈 값이면 추천판, 지정판이 구성되지 않으면 추천판으로 진행. 성공 여부는 ubuntu-drivers 의 종료 코드가 아니라 패키지 상태(`dpkg`) · 모듈 파일로 판정한다 |
+| `NVIDIA_DRIVER_SERIES` | (빈 값) | 설치할 드라이버 시리즈. 빈 값이면 `ubuntu-drivers` 추천판(LexAI 네이티브와 같은 방식) — 날짜 · 이미지에 따라 버전이 달라질 수 있다. 소스 · 타겟을 같은 버전으로 맞추려면 `595` 처럼 지정(`ubuntu-drivers install nvidia:595`), 지정판이 구성되지 않으면 추천판으로 진행. 성공 여부는 ubuntu-drivers 의 종료 코드가 아니라 패키지 상태(`dpkg`) · 모듈 파일로 판정한다 |
 | `NO_START=1` | — | 준비만 하고 기동은 하지 않음 (= `--install`) |
 | `TARGET_USER` | uid 1000 | root 로 실행될 때 서비스를 돌릴 사용자 |
 
@@ -193,7 +193,7 @@ ssh -i <키> -N -L 8081:localhost:80 ubuntu@<IP>      # 이후 브라우저로 h
 
 | 서비스 | 의존성 설치 (`npm install` 상당) | 기동 (`npm run prod` 상당) |
 |---|---|---|
-| AI 서버 (FastAPI) | `python3.12 -m venv .venv && .venv/bin/pip install -r requirements_exaone.txt` (이관 트리면 `requirements-lock.txt` 그대로) | systemd `widgetrag-ai` (ExecStart=`.venv/bin/uvicorn main_exaone:app --host 0.0.0.0 --port 8000`) |
+| AI 서버 (FastAPI) | `python3 -m venv .venv && .venv/bin/pip install -r requirements_exaone.txt` (이관 트리면 `requirements-lock.txt` 그대로) | systemd `widgetrag-ai` (ExecStart=`.venv/bin/uvicorn main_exaone:app --host 0.0.0.0 --port 8000`) |
 | 백엔드 (Spring Boot) | `./mvnw package -DskipTests` (이관 트리면 소스의 jar 그대로) | systemd `widgetrag-backend` (ExecStart=`java -jar target/backend-*.jar --spring.profiles.active=local --spring.config.additional-location=file:/etc/widgetrag/`) |
 | 프론트엔드 (정적 + /api 프록시) | 빌드 불필요 · `apt install nginx` | systemd `widgetrag-frontend` (ExecStart=`nginx -c /etc/widgetrag/frontend-nginx.conf -g 'daemon off;'`) |
 | LLM (Ollama) | `ollama pull gemma3:4b` (기본 — Gemma 약관 OLA 표기) | 시스템 서비스 (systemd) |
@@ -241,7 +241,7 @@ bash ../package.sh backup|fetch|restore   # 이관 패키지 도구 (두 형태 
 | `PACKAGE_DIR` | `~/widgetrag-package` | 받은 이관 패키지 — rsync 로 여기 넣으면 `SNAPSHOT_URI` 없이 복원 · 트리 전개까지 된다 |
 | `CODE_SOURCE` | `auto` | `bootstrap.sh` 의 코드 확보 — `auto`: 패키지에 실행 파일 층이 있으면 그 트리, 없으면 clone · `package`: 트리만(없으면 실패) · `git`: 항상 clone |
 | `WITH_WHEELS` | `0` | `package.sh backup` 때 잠금 목록의 wheel 을 동봉 (폐쇄망용 — 수 GB) |
-| `PYTHON_BIN` | `python3.12` | venv 생성용 — 3.14는 torch 미지원 |
+| `PYTHON_BIN` | `python3` | venv 생성용 — OS 기본 파이썬(22.04 는 3.10, 24.04 는 3.12, LexAI 네이티브와 같은 방식). 3.10 미만이면 멈추고, 3.14 이상은 경고만 |
 
 ## 이 스크립트들이 막아 주는 함정
 
