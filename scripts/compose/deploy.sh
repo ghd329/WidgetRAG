@@ -50,6 +50,10 @@
 #     NO_START=1      준비만 하고 기동은 안 함
 #     SKIP_VERIFY=1   마지막 검증을 건너뜀
 #     COMPARE=1       마지막 검증에서 이관 동등성까지 대조 (GOLDEN_CHECK=0 이면 LLM 골든 대조 생략)
+#     NO_UPDATE=1     **이관 모드.** 소스에서 옮겨 온 배포 디렉토리(WORK_DIR)의 사본을 그대로 쓰고 저장소에서 받지 않는다 —
+#                     deploy.sh 자신 · compose 2개 · package.sh · verify.sh · migcheck.py 모두 소스와 같은 버전
+#                     (LexAI deploy/compose/deploy.sh 와 같은 방식). 사본이 하나라도 없으면 받지 않고 멈춘다.
+#                     실행: NO_UPDATE=1 bash ~/widgetrag-deploy/deploy.sh
 #     ADMIN_PASSWORD  관리자 비밀번호 (기본값은 아래 .env 생성부 — Shell 설치형과 같다). .env 를 처음 만들 때만
 #                     쓴다 — 계정은 최초 기동 때 한 번 만들어진다. 이관된 타겟은 소스 DB 의 계정을 쓰므로 같은 값으로 로그인된다.
 #                     운영에 쓸 때는 바꾼다.
@@ -74,7 +78,7 @@ RESUME_ENV="/etc/widgetrag/compose-resume.env"
 NVIDIA_DRIVER_SERIES="${NVIDIA_DRIVER_SERIES-}"
 
 # 재실행 · 재부팅 재개 때 넘겨야 하는 값 — 사람이 지정한 것만 넘긴다 (기본값 적용 전에 판단)
-PASS_VARS=(BRANCH REPO_RAW WORK_DIR REGISTRY_PREFIX IMAGE_TAG SNAPSHOT_URI S3_ENDPOINT_URL FORCE_RESTORE NO_DRIVER
+PASS_VARS=(BRANCH REPO_RAW WORK_DIR NO_UPDATE REGISTRY_PREFIX IMAGE_TAG SNAPSHOT_URI S3_ENDPOINT_URL FORCE_RESTORE NO_DRIVER
            NO_START SKIP_VERIFY LLM_TEMPERATURE LLM_SEED FORM RUNS VERIFY_ADMIN_PASSWORD ADMIN_PASSWORD COMPARE GOLDEN_CHECK
            EXPECT_SERVICE_COUNT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_DEFAULT_REGION)
 
@@ -135,8 +139,12 @@ if [ "$(id -u)" -eq 0 ] && [ "${WIDGETRAG_REEXEC:-0}" != 1 ]; then
   RUN_HOME="$(getent passwd "$RUN_USER" | cut -d: -f6)"
   WORK_DIR="${WORK_DIR:-$RUN_HOME/widgetrag-deploy}"
   log "root 로 실행되었습니다 — ${RUN_USER} 사용자로 이어서 진행합니다"
-  command -v curl >/dev/null 2>&1 || { apt_get update -qq; apt_get install -y -q curl ca-certificates; }
-  fetch_self "$WORK_DIR/deploy.sh" "$RUN_USER"
+  if [ "${NO_UPDATE:-0}" = 1 ]; then
+    [ -f "$WORK_DIR/deploy.sh" ] || die "NO_UPDATE=1 인데 옮겨 온 배포 디렉토리가 없습니다: $WORK_DIR"
+  else
+    command -v curl >/dev/null 2>&1 || { apt_get update -qq; apt_get install -y -q curl ca-certificates; }
+    fetch_self "$WORK_DIR/deploy.sh" "$RUN_USER"
+  fi
   mapfile -d '' ENV_ARGS < <(pass_env)
   exec sudo -u "$RUN_USER" -H env WIDGETRAG_REEXEC=1 WIDGETRAG_FROMFILE=1 WIDGETRAG_RESUME="${WIDGETRAG_RESUME:-0}" "${ENV_ARGS[@]}" \
     WORK_DIR="$WORK_DIR" bash "$WORK_DIR/deploy.sh" "$@" </dev/null
@@ -151,7 +159,10 @@ WORK_DIR="${WORK_DIR:-$HOME/widgetrag-deploy}"
 # 사본은 매번 새로 받는다 — "없을 때만" 받으면 옛 사본이 계속 실행되어 고친 내용이 반영되지 않는다.
 # (로컬에서 고친 사본을 그대로 돌리려면 NO_SELF_UPDATE=1)
 if [ "${WIDGETRAG_FROMFILE:-0}" != 1 ]; then
-  if [ "${NO_SELF_UPDATE:-0}" = 1 ] && [ -f "${BASH_SOURCE[0]:-}" ]; then
+  if [ "${NO_UPDATE:-0}" = 1 ]; then          # 이관 모드 — 옮겨 온 사본 그대로 (저장소에서 받지 않는다)
+    [ -f "$WORK_DIR/deploy.sh" ] || die "NO_UPDATE=1 인데 옮겨 온 배포 디렉토리가 없습니다: $WORK_DIR"
+    SELF="$WORK_DIR/deploy.sh"
+  elif [ "${NO_SELF_UPDATE:-0}" = 1 ] && [ -f "${BASH_SOURCE[0]:-}" ]; then
     SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
   else
     command -v curl >/dev/null 2>&1 || { apt_get update -qq; apt_get install -y -q curl ca-certificates; }
@@ -378,12 +389,21 @@ fi
 
 # ---------- 4. 배포 파일 수신 (저장소에서 받는 전부 — git·소스 없음) ----------
 mkdir -p "$WORK_DIR" && cd "$WORK_DIR"
-log "배포 파일 수신: $RAW_BASE ($BRANCH)"
-curl -fsSL "$RAW_BASE/docker-compose.yml"        -o docker-compose.yml        || die "docker-compose.yml 수신 실패"
-curl -fsSL "$RAW_BASE/docker-compose.images.yml" -o docker-compose.images.yml || die "docker-compose.images.yml 수신 실패"
-curl -fsSL "$RAW_BASE/scripts/package.sh"        -o package.sh                || die "package.sh 수신 실패"
-curl -fsSL "$RAW_BASE/scripts/verify.sh"         -o verify.sh                 || die "verify.sh 수신 실패"
-curl -fsSL "$RAW_BASE/scripts/migcheck.py"       -o migcheck.py               || die "migcheck.py 수신 실패"
+DEPLOY_FILES="docker-compose.yml docker-compose.images.yml package.sh verify.sh migcheck.py"
+if [ "${NO_UPDATE:-0}" = 1 ]; then
+  # 이관 모드 — 소스에서 옮겨 온 사본을 그대로 쓴다. 받아 오면 브랜치 최신본이라 소스와 판정 기준 · 이미지 태그가 갈린다
+  for f in $DEPLOY_FILES; do
+    [ -f "$f" ] || die "NO_UPDATE=1 인데 옮겨 온 배포 파일이 없습니다: $WORK_DIR/$f"
+  done
+  log "배포 파일: 소스에서 옮겨 온 사본 그대로 (NO_UPDATE=1 — 저장소에서 받지 않음)"
+else
+  log "배포 파일 수신: $RAW_BASE ($BRANCH)"
+  curl -fsSL "$RAW_BASE/docker-compose.yml"        -o docker-compose.yml        || die "docker-compose.yml 수신 실패"
+  curl -fsSL "$RAW_BASE/docker-compose.images.yml" -o docker-compose.images.yml || die "docker-compose.images.yml 수신 실패"
+  curl -fsSL "$RAW_BASE/scripts/package.sh"        -o package.sh                || die "package.sh 수신 실패"
+  curl -fsSL "$RAW_BASE/scripts/verify.sh"         -o verify.sh                 || die "verify.sh 수신 실패"
+  curl -fsSL "$RAW_BASE/scripts/migcheck.py"       -o migcheck.py               || die "migcheck.py 수신 실패"
+fi
 chmod +x package.sh verify.sh
 # caddy 는 구성에서 뺐다 (frontend 의 nginx 가 /api 를 프록시) — 예전 배포가 남긴 파일은 치운다
 if [ -e Caddyfile ]; then sudo rm -rf Caddyfile; log "구성 축소 — 예전 Caddyfile 제거 (caddy 서비스 삭제됨)"; fi

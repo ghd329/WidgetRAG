@@ -99,6 +99,16 @@ toolkit 이 없거나 설정이 틀리면 **에러 없이 CPU 로 폴백한다.*
 이 한 줄이 CB-Tumblebug 의 `postCommands` 에 그대로 실리는 페이로드다. root 로 실행돼도
 uid 1000 사용자로 스스로 전환하므로 배포물이 `/root` 아래에 갇히지 않는다.
 
+이관 오케스트레이터는 이 한 줄 대신 **소스의 배포 디렉토리를 타겟으로 옮긴 뒤 그 사본을 이관 모드로 실행**한다
+(LexAI Compose 와 같은 방식). 저장소에서 받으면 브랜치 최신본이라 소스와 판정 기준(`migcheck.py`) · 이미지 태그가 갈리기 때문이다.
+
+```bash
+NO_UPDATE=1 LLM_TEMPERATURE=0 LLM_SEED=42 COMPARE=1 bash ~/widgetrag-deploy/deploy.sh
+```
+
+`NO_UPDATE=1` 이면 deploy.sh · compose 2개 · package.sh · verify.sh · migcheck.py 를 받지 않고 옮겨 온 사본을 그대로 쓰며,
+하나라도 없으면 멈춘다. 패키지는 `~/widgetrag-deploy/package` 에, 배포 디렉토리는 `package` · `snapshots` · 볼륨 백업본을 빼고 옮긴다.
+
 Shell 설치형(A) 소스에서 뜬 패키지에는 실행 파일 층(`app-tree.tar.gz` · `baseline-app.tsv` · `baseline-env.tsv`)이 들어 있다.
 B 타겟은 `fetch` 때 받아 두기만 하고 쓰지 않는다 — 이 형태의 실행 파일은 이미지(`IMAGE_TAG`)이고, `compare` 는 INFO 한 줄만 남긴다.
 반대로 B 에서 뜬 패키지에는 실행 파일 층이 없어 A 타겟은 저장소 clone 으로 돌아간다 ([`../local/`](../local/) "실행 파일 이전").
