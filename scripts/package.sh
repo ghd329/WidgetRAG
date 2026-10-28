@@ -30,7 +30,7 @@
 #     baseline-db.tsv              DB 논리 해시 (테이블별 행 수 · 바이트 · sha256 + _schema)
 #     baseline-rag.tsv             색인 내용 해시 (인덱스별 + 매핑 · 설정) — baseline-rag-docs.tsv 는 문서별 해시
 #     fingerprint-source.txt       소스 환경 지문 (Ollama · 모델 digest · GPU · 생성 파라미터 — 화이트리스트 키만)
-#     golden.json                  골든 질문 · 응답 (GOLDEN=1) — 타겟 LLM 응답 완전 일치 비교(테스트2)의 기준
+#     golden.json                  골든 질문 · 응답 (GOLDEN=1) — 타겟 LLM 응답 동일성 비교(테스트2)의 기준
 #   실행 파일 층 (소스가 Shell 설치형일 때 — 계획서의 "실행 파일 · 스크립트 · 의존 패키지 · 환경변수 이전")
 #     app-tree.tar.gz              scripts/ · backend/target/backend-*.jar · frontend/ · ai-server/(소스 + requirements-lock.txt)
 #                                  + 루트의 app-tree.env(커밋 · 생성 시각) · app-manifest.tsv(파일별 바이트 · sha256).
@@ -1718,7 +1718,7 @@ cmp_app() {  # T1-3 실행 파일 층 — 패키지의 baseline-app.tsv(소스 �
   return 0
 }
 
-cmp_golden() {  # T2 — 골든 질문을 같은 조건(질문마다 콜드 로드)으로 다시 묻고 답변 바이트 · 추천 상품을 대조
+cmp_golden() {  # T2 — 골든 질문을 같은 조건(질문마다 콜드 로드)으로 다시 묻고 추천 상품 · 답변을 대조 (판정은 migcheck golden-compare)
   local pkg="$1" evi="$2" gst="$3" model raw line id cc q body first=1 unload_fail=0 rc want lst exp got
   local -a plan=()
   if [ "${GOLDEN_CHECK:-1}" = 0 ]; then
@@ -1839,7 +1839,7 @@ cmd_compare() {
   cmp_uploads "$pkg" "$evi"
   log "T1-3 실행 파일 · 실행 환경"
   cmp_app "$pkg" "$evi"
-  log "T2 LLM 응답 완전 일치"
+  log "T2 LLM 응답 동일성"
   cmp_stage "$evi" T2
   cmp_golden "$pkg" "$evi" "$gst"
   cmp_stage "$evi" "done"

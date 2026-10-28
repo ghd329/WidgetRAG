@@ -74,6 +74,9 @@ SERVICE_ROLES = {
 PRE_KEYS = ("llm_temperature", "llm_seed", "llm_model", "llm_num_predict")
 ENV_KEYS = ("ollama_version", "model_digest", "show_sha256", "gpu", "driver", "embedding_device",
             "python", "torch", "sentence_transformers", "opensearch_version")
+# 생성 문장이 같아야 하는 환경 — 넷이 모두 소스와 같으면 온도 0 · seed 고정에서 문장도 같아야 하고(다르면 FAIL),
+# 하나라도 다르거나 값이 없으면 GPU 연산 차이로 문장이 갈릴 수 있어 WARN 으로 남긴다
+SAME_ENV_KEYS = ("gpu", "driver", "ollama_version", "model_digest")
 # fingerprint 가 값을 못 얻었을 때 쓰는 자리표시 — 전제 비교에서는 "값 없음" 으로 본다
 EMPTY_VALUES = ("", "-", "unavailable")
 
@@ -738,6 +741,8 @@ def cmd_golden_compare(a):
     gpu_ok = "100% GPU" in t
     emit("env:ollama_processor", s, t, "PASS" if gpu_ok else "WARN",
          "-" if gpu_ok else "타겟 모델이 GPU 에 전부 올라가지 않음")
+    env_diff = [k for k in SAME_ENV_KEYS
+                if meta_val(sm, k) in EMPTY_VALUES or meta_val(tm, k) in EMPTY_VALUES or meta_val(sm, k) != meta_val(tm, k)]
 
     for idx, it in enumerate(items, 1):
         qid = str(it.get("id") or "q%02d" % idx)
@@ -755,6 +760,9 @@ def cmd_golden_compare(a):
         src_label = ap_label(src_ans, src_prods)
         tgt_label = ap_label(tgt_ans, tgt_prods) if l3.parsed else "a:- p:-"
 
+        # 판정 — 응답 비정상 · 추천 상품(검색 결과) 다름은 FAIL. 상품이 같고 문장만 다르면 환경(SAME_ENV_KEYS)이
+        # 소스와 모두 같을 때만 FAIL, 하나라도 다르면 WARN. 유사도는 합격선 없이 기록만 한다
+        res = "FAIL"
         if it.get("stable") is False:
             note = "소스 자체 재현 불가 — 이관과 무관"
         elif it.get("isFallback") is not False or not nonempty_str(src_ans):
@@ -769,9 +777,16 @@ def cmd_golden_compare(a):
             elif same_prods and l2_same:
                 note = "재현성 문제 (캐시·동시 요청)"
             elif same_prods:
-                note = "생성 계층 불일치 (Ollama·모델·GPU 확인)"
+                note = "생성 계층 불일치"
             else:
                 note = "검색·생성 모두 불일치"
+            if same_prods:
+                if env_diff:
+                    res = "WARN"
+                    note += " · 추천 상품 같음 · 환경 다름(%s) — 생성 문장이 갈릴 수 있음" % ", ".join(env_diff)
+                else:
+                    note += " · 추천 상품 같음 · 환경이 소스와 같은데 문장 다름 (모델 · 설정 확인)"
+            note += " · 유사도 %.2f" % difflib.SequenceMatcher(None, src_ans or "", tgt_ans or "").ratio()
             if off is not None:
                 note += " · 첫 차이 %d자" % off
             if not l2ok:
@@ -781,7 +796,7 @@ def cmd_golden_compare(a):
         if note is None:
             emit(qid, src_label, tgt_label, "PASS", "답변·추천 상품 완전 일치")
             continue
-        emit(qid, src_label, tgt_label, "FAIL", note)
+        emit(qid, src_label, tgt_label, res, note)
         if a.diff_dir:
             write_diff(os.path.join(a.diff_dir, "%s.diff" % qid), qid, it.get("question"), note,
                        src_ans, tgt_ans, l2.answer, off, src_prods, tgt_prods if l3.parsed else None)
@@ -947,7 +962,7 @@ def cmd_report(a):
     first = "이관 동등성: 테스트1 %s · 테스트2 %s" % (test1, test2)
 
     desc = {"T1-1": "서비스 수·역할", "T1-2": "패키지 파일(체크섬·목록)",
-            "T1-3": "데이터 내용(DB·RAG·업로드)", "T2": "LLM 응답 완전 일치(골든)"}
+            "T1-3": "데이터 내용(DB·RAG·업로드)", "T2": "LLM 응답 동일성(골든)"}
     lines = [first,
              "일시 %s · 타겟 %s · 소스 %s · 패키지 %s" % (a.timestamp, a.form, a.source_form, a.package),
              "",
