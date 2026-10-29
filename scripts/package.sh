@@ -448,12 +448,14 @@ if m:
   printf '%s\n' "${v:-unavailable}"
 }
 
-front_chat() {  # front_chat <clientCode> <질문> <접두사> — 위젯 경로(프론트 /api 프록시) 응답을 <접두사>.json · .code 로
-  local body
+front_chat() {  # front_chat <clientCode> <질문> <접두사> — 위젯 경로(프론트 /api 프록시) 응답을 <접두사>.json · .code · .sec(응답 시간, 초) 로
+  local body w=""
   body="$(python3 -c 'import json,sys; print(json.dumps({"clientCode": sys.argv[1], "question": sys.argv[2]}, ensure_ascii=False))' "$1" "$2")" || body=""
-  curl -s -o "$3.json" -w '%{http_code}' --max-time 200 -X POST "$FRONT/api/chat" \
-    -H 'Content-Type: application/json' -d "$body" > "$3.code" 2>/dev/null || true
+  w="$(curl -s -o "$3.json" -w '%{http_code} %{time_total}' --max-time 200 -X POST "$FRONT/api/chat" \
+    -H 'Content-Type: application/json' -d "$body" 2>/dev/null)" || true
+  printf '%s' "${w%% *}" > "$3.code"
   [ -s "$3.code" ] || printf '000' > "$3.code"
+  case "$w" in *' '*) printf '%s' "${w##* }" > "$3.sec" ;; esac
   [ -f "$3.json" ] || : > "$3.json"
 }
 
@@ -1720,7 +1722,7 @@ cmp_app() {  # T1-3 실행 파일 층 — 패키지의 baseline-app.tsv(소스 �
 
 cmp_golden() {  # T2 — 골든 질문을 같은 조건(질문마다 콜드 로드)으로 다시 묻고 추천 상품 · 답변을 대조 (판정은 migcheck golden-compare)
   local pkg="$1" evi="$2" gst="$3" model raw line id cc q body first=1 unload_fail=0 rc want lst exp got
-  local -a plan=()
+  local -a plan=() retry=()
   if [ "${GOLDEN_CHECK:-1}" = 0 ]; then
     row T2 golden - - SKIP "GOLDEN_CHECK=0"
     return 0
@@ -1772,9 +1774,20 @@ cmp_golden() {  # T2 — 골든 질문을 같은 조건(질문마다 콜드 로�
     ai_generate "$body" "$raw/t-$id-l2"
     log "   $id — L3 $(cat "$raw/t-$id-l3.code" 2>/dev/null) · L2 $(cat "$raw/t-$id-l2.code" 2>/dev/null)"
   done
+  # 환경이 소스와 같은데 문장이 다른 문항은 한 번 다시 묻는다 (같은 콜드 조건) — 같아지면 재현성 문제(WARN),
+  # 그래도 다르면 FAIL. 어떤 문항을 다시 물을지는 migcheck 가 정한다 (LexAI migcompare 와 같은 규칙)
+  mapfile -t retry < <(mc golden-retry-plan --golden "$pkg/golden.json" --raw-dir "$raw" --target-meta "$evi/fingerprint-target.txt" 2>/dev/null || true)
+  for id in "${retry[@]}"; do
+    [ -n "$id" ] || continue
+    line="$(awk -F'\t' -v id="$id" '$1 == id' "$evi/golden-plan.tsv")"
+    IFS=$'\t' read -r id cc q body <<< "$line" || true
+    llm_unload "$model" || unload_fail=$((unload_fail + 1))
+    front_chat "$cc" "$q" "$raw/t-$id-l3-retry"
+    log "   $id — 다시 물음 (환경이 같은데 문장이 달라서) · L3 $(cat "$raw/t-$id-l3-retry.code" 2>/dev/null)"
+  done
   rc=0
   mc_rows "$CMP_TMP/rows-golden.tsv" golden-compare --golden "$pkg/golden.json" --raw-dir "$raw" \
-    --target-meta "$evi/fingerprint-target.txt" --diff-dir "$evi/golden-diff" || rc=$?
+    --target-meta "$evi/fingerprint-target.txt" --diff-dir "$evi/golden-diff" --target-out "$evi/target-golden.json" || rc=$?
   mc_err "$rc" T2 golden golden-compare
   if [ "$unload_fail" != 0 ]; then
     row T2 llm_unload - "${unload_fail}회 실패" WARN "모델 언로드 확인 실패 — 콜드 로드 조건이 아니었을 수 있음 (/api/ps)"

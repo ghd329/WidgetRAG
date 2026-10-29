@@ -16,7 +16,8 @@
 #     python3 migcheck.py l2-body --l3 파일 --client-code C --question Q
 #     python3 migcheck.py golden-build --questions 파일 --client-code C --raw-dir 디렉토리 --meta 파일 --repeat R --out 파일
 #     python3 migcheck.py golden-plan --golden 파일
-#     python3 migcheck.py golden-compare --golden 파일 --raw-dir 디렉토리 --target-meta 파일 [--diff-dir 디렉토리]
+#     python3 migcheck.py golden-retry-plan --golden 파일 --raw-dir 디렉토리 --target-meta 파일
+#     python3 migcheck.py golden-compare --golden 파일 --raw-dir 디렉토리 --target-meta 파일 [--diff-dir 디렉토리] [--target-out 파일]
 #     python3 migcheck.py compare-tsv --test T --prefix P --source 파일 --target 파일 [--bytes-col K] [--summary-only-if-pass] [--level FAIL|WARN]
 #     python3 migcheck.py diff-docs --source 파일 --target 파일 [--limit 20]
 #     python3 migcheck.py report --rows 파일 --csv 파일 --timestamp TS --form F --source-form SF --package 이름 --summary 파일
@@ -483,7 +484,7 @@ def cmd_l2_body(a):
 
 # ---------- 1.8 응답 유효성 ----------
 class Resp(object):
-    """원시 응답 한 쌍(<prefix>.json · <prefix>.code)."""
+    """원시 응답(<prefix>.json · <prefix>.code · 있으면 <prefix>.sec — 응답 시간 초)."""
 
     def __init__(self, prefix):
         self.prefix = prefix
@@ -493,6 +494,10 @@ class Resp(object):
         except (OSError, ValueError):
             code = ""
         self.code = code or "000"
+        try:
+            self.sec = round(float(read_text(prefix + ".sec").strip()), 2)
+        except (OSError, ValueError):
+            self.sec = None
         self.parsed = False
         self.body = None
         try:
@@ -512,6 +517,36 @@ class Resp(object):
     @property
     def products(self):
         return self.get("recommendedProducts")
+
+    @property
+    def product_ids(self):
+        return product_ids(self.products)
+
+
+def product_ids(products):
+    """검색 결과(top-k) — 추천 상품의 productItemId 를 응답 순서대로. 상품이 곧 OpenSearch 검색 상위 k 건이다."""
+    if not isinstance(products, list):
+        return []
+    return [p.get("productItemId") if isinstance(p, dict) else None for p in products]
+
+
+def ids_label(ids):
+    return ",".join(str(i) for i in ids[:6]) or "-"
+
+
+def topk_overlap(src, tgt):
+    """top-k 일치 — 소스 검색 결과 중 타겟에도 있는 건수 / 소스 건수 (순서 무관, 판정에는 쓰지 않고 기록만)."""
+    if not src:
+        return "-"
+    return "%d/%d" % (len(set(src) & set(tgt)), len(src))
+
+
+def deterministic(meta):
+    """생성 설정이 결정적인가 — 온도 0 · seed 고정 (-1 · 빈 값이면 아니다). 아니면 문장 비교 자체가 성립하지 않는다."""
+    try:
+        return float(meta_val(meta, "llm_temperature")) == 0.0 and meta_val(meta, "llm_seed") not in EMPTY_VALUES + ("-1",)
+    except ValueError:
+        return False
 
 
 def nonempty_str(v):
@@ -605,11 +640,13 @@ def cmd_golden_build(a):
                 break
     items = []
     for qid, q, runs in collected:
-        sig = [(l3.answer, products_canon(l3.products), l2.answer) for l3, l2 in runs]
-        stable = all(s == sig[0] for s in sig)
+        # 답변 재현(stable)과 검색 재현(sources_stable)을 나눠 남긴다 (LexAI migcompare 와 같은 기준) —
+        # 소스끼리도 답이 다른 문항은 기준을 버리지 않고 타겟 비교에서 SKIP(이관과 무관)으로 둔다
+        stable = all(l3.answer == runs[0][0].answer for l3, _ in runs)
+        sources_stable = all(l3.product_ids == runs[0][0].product_ids for l3, _ in runs)
         l3, l2 = runs[0]
         variants = []
-        if not stable:
+        if not (stable and sources_stable):
             for r, (v3, v2) in enumerate(runs, 1):
                 variants.append({"r": r, "answer": v3.answer, "answer_sha256": answer_sha(v3.answer),
                                  "recommendedProducts": v3.products,
@@ -618,16 +655,14 @@ def cmd_golden_build(a):
         items.append({
             "id": qid, "clientCode": a.client_code, "question": q,
             "answer": l3.answer, "answer_sha256": answer_sha(l3.answer),
-            "recommendedProducts": l3.products,
+            "recommendedProducts": l3.products, "product_ids": l3.product_ids,
             "products_sha256": sha256_text(products_canon(l3.products)),
             "isFallback": l3.get("isFallback"), "l2_answer": l2.answer,
-            "stable": stable, "variants": variants,
+            "stable": stable, "sources_stable": sources_stable, "variants": variants,
+            # 회차마다 — 상태 · 응답 시간 · 답변 해시 · 검색 결과(top-k 상품 ID)
+            "reps": [{"r": r, "code": v3.code, "sec": v3.sec, "answer_sha256": answer_sha(v3.answer),
+                      "product_ids": v3.product_ids} for r, (v3, _v2) in enumerate(runs, 1)],
         })
-    if not status:
-        for it in items:
-            if not it["stable"]:
-                status = "failed:unstable:%s" % it["id"]
-                break
     # 질문이 하나도 없으면 기준으로 쓸 수 없다 — 불완전으로 본다
     if not status and (len(collected) != len(questions) or not questions):
         status = "failed:incomplete"
@@ -635,7 +670,7 @@ def cmd_golden_build(a):
 
     meta = dict(meta_in)
     meta.update({"client_code": a.client_code, "questions": len(questions), "repeat": R, "status": status})
-    golden = {"format": 1, "meta": meta, "items": items}
+    golden = {"format": 2, "meta": meta, "items": items}
     with open(a.out, "w", encoding="utf-8", newline="") as f:
         f.write(json.dumps(golden, ensure_ascii=False, indent=1) + "\n")
     out("GOLDEN_STATUS=%s" % status)
@@ -668,18 +703,21 @@ def meta_val(m, k):
     return "" if v is None else str(v).strip()
 
 
-def ap_label(ans, products):
+def ap_label(ans, ids):
     a_ = answer_sha(ans)
-    return "a:%s p:%s" % (a_[:12] if a_ else "-", sha256_text(products_canon(products))[:12])
+    return "a:%s d:%s" % (a_[:12] if a_ else "-", ids_label(ids))
 
 
-def write_diff(path, qid, question, note, src_ans, tgt_ans, l2_ans, off, src_prods, tgt_prods):
+def write_diff(path, qid, question, note, src_ans, tgt_ans, l2_ans, off, src_prods, tgt_prods, retry_ans=None):
     def block(title, text):
         return "[%s]\n%s\n\n" % (title, text if text is not None else "(없음)")
 
-    body = "# %s — %s\n질문: %s\n첫 차이: %s\n\n" % (qid, note, question, "-" if off is None else "%d자" % off)
+    body = "# %s — %s\n질문: %s\n첫 차이: %s\n" % (qid, note, question, "-" if off is None else "%d자" % off)
+    body += "검색 결과 (소스): %s\n검색 결과 (타겟): %s\n\n" % (product_ids(src_prods), product_ids(tgt_prods))
     body += block("소스 답변", src_ans)
     body += block("타겟 답변", tgt_ans)
+    if retry_ans is not None:
+        body += block("타겟 답변 (다시 물음)", retry_ans)
     body += block("타겟 L2 답변 (소스 추천 상품으로 생성)", l2_ans)
     # 끝 줄에도 개행을 붙여야 -/+ 줄이 한 줄로 붙지 않는다
     ud = "".join(difflib.unified_diff(((src_ans or "") + "\n").splitlines(True),
@@ -691,16 +729,116 @@ def write_diff(path, qid, question, note, src_ans, tgt_ans, l2_ans, off, src_pro
         f.write(body)
 
 
+def similarity(a, b):
+    return difflib.SequenceMatcher(None, a or "", b or "", autojunk=False).ratio()
+
+
+def golden_context(g, target_meta):
+    """골든 비교의 공통 값 — 소스 · 타겟 지문, 전제가 같은지, 결정적 설정인지, 다른 환경 키."""
+    sm = g["meta"]
+    if os.path.isfile(target_meta):
+        tm = read_kv(target_meta)
+    else:
+        # 지문이 없으면 전제·진단이 전부 "값 없음" 으로 드러난다 — 여기서 멈추지 않고 ROW 로 남긴다
+        warn("타겟 지문 파일이 없습니다: %s" % target_meta)
+        tm = {}
+    pre_ok = all(meta_val(sm, k) not in EMPTY_VALUES and meta_val(sm, k) == meta_val(tm, k) for k in PRE_KEYS)
+    env_diff = [k for k in SAME_ENV_KEYS
+                if meta_val(sm, k) in EMPTY_VALUES or meta_val(tm, k) in EMPTY_VALUES or meta_val(sm, k) != meta_val(tm, k)]
+    return sm, tm, pre_ok, deterministic(sm), env_diff
+
+
+def golden_judge(it, raw_dir, pre_ok, det, env_diff, idx):
+    """문항 하나 판정 (LexAI migcompare 와 같은 순서) — 판정 · 원인과 증적용 값을 dict 로.
+
+      소스 응답 비정상                                 SKIP  이관과 무관
+      타겟 응답 비정상 (오류 · 빈 답변 · 대체 응답)     FAIL
+      검색 결과(추천 상품 ID · 순서)가 다름            FAIL  데이터 · 색인 확인
+      검색 같음 · 문장 같음                            PASS
+      검색 같음 · 문장 다름 · 소스끼리도 답이 다름      SKIP  이관과 무관
+      검색 같음 · 문장 다름 · 비결정적 설정            SKIP  (전제가 소스와 다르면 FAIL)
+      검색 같음 · 문장 다름 · 환경이 소스와 다름        WARN  유사도 · 차이 파일을 증적으로
+      검색 같음 · 문장 다름 · 환경이 소스와 같음        다시 물은 답(t-<id>-l3-retry)이 소스와 같으면 WARN(재현성), 아니면 FAIL
+    """
+    qid = str(it.get("id") or "q%02d" % idx)
+    src_ans = it.get("answer") if isinstance(it.get("answer"), str) else None
+    src_prods = it.get("recommendedProducts")
+    src_ids = it.get("product_ids") if isinstance(it.get("product_ids"), list) else product_ids(src_prods)
+    base = os.path.join(raw_dir, "t-%s" % qid)
+    l3, l2, retry = Resp(base + "-l3"), Resp(base + "-l2"), Resp(base + "-l3-retry")
+    l3s, l3why = l3_state(l3)
+    l2ok, l2why = l2_state(l2)
+    tgt_ans, tgt_ids = l3.answer, l3.product_ids
+    stable = it.get("stable") is not False
+    # golden.json format 1 은 답변 · 상품을 묶은 stable 하나뿐 — 그때는 같은 값으로 본다
+    sources_stable = it.get("sources_stable", it.get("stable")) is not False
+    l2_same = l2ok and src_ans is not None and l2.answer == src_ans
+    sim = similarity(src_ans, tgt_ans)
+    off = first_diff(src_ans, tgt_ans)
+    j = {"id": qid, "question": it.get("question"), "need_retry": False, "diff": False, "retry_ans": None,
+         "src_ids": src_ids, "tgt_ids": tgt_ids, "overlap": topk_overlap(src_ids, tgt_ids),
+         "src_label": ap_label(src_ans, src_ids), "tgt_label": ap_label(tgt_ans, tgt_ids) if l3.parsed else "a:- d:-",
+         "src_ans": src_ans, "tgt_ans": tgt_ans, "l2_ans": l2.answer, "off": off, "src_prods": src_prods,
+         "tgt_prods": l3.products if l3.parsed else None,
+         "target": {"code": l3.code, "state": l3s, "sec": l3.sec, "answer_sha256": answer_sha(tgt_ans), "product_ids": tgt_ids},
+         "retry": None}
+
+    def done(res, note, diff=False):
+        if not l2ok and res in ("FAIL", "WARN"):
+            # L2 가 실패했으면 "생성 다름" 은 추정일 뿐이다 — 근거를 밝혀 둔다
+            note += " · L2 응답 비정상(%s)" % l2why
+        j.update(result=res, note=note, diff=diff)
+        return j
+
+    tail = " · 유사도 %.2f%s" % (sim, "" if off is None else " · 첫 차이 %d자" % off)
+    if it.get("isFallback") is not False or not nonempty_str(src_ans):
+        return done("SKIP", "소스 골든 항목 비정상(fallback·빈 답변) — 이관과 무관")
+    if l3s != "ok":
+        return done("FAIL", "타겟 응답 비정상 (fallback·오류·빈 답변) · %s" % l3why)
+    if src_ids != tgt_ids:
+        note = "검색 결과 다름 — 데이터 · 색인 확인 (top-k 일치 %s)" % j["overlap"]
+        if not sources_stable:
+            note += " · 소스끼리도 달랐음"
+        if l2_same:
+            note += " · 생성은 동일(L2)"
+        return done("FAIL", note + tail, diff=True)
+    if tgt_ans == src_ans:
+        return done("PASS", "검색 결과 · 답변 완전 일치")
+    if not stable:
+        return done("SKIP", "검색 같음 · 소스끼리도 답이 달라 문장 비교 불가 — 이관과 무관")
+    if not pre_ok:
+        return done("FAIL", "검색 같음 · 문장 다름 — 생성 설정이 소스와 다름" + tail, diff=True)
+    if not det:
+        return done("SKIP", "검색 같음 · 문장 다름 — 비결정적 설정이라 문장 비교 불가 (온도 0 · seed 고정 필요)")
+    if env_diff:
+        return done("WARN", "검색 같음 · 문장만 다름 — 환경 차이(%s)%s" % (", ".join(env_diff), tail), diff=True)
+    # 환경이 같은데 문장이 다르다 — 한 번 다시 물어(package.sh 가 golden-retry-plan 대로) 재현성 문제인지 가른다
+    j["need_retry"] = True
+    if not retry.present:
+        return done("FAIL", "검색 같음 · 환경이 같은데 문장이 다름 (다시 묻지 않음)%s — 모델 · 설정 확인" % tail, diff=True)
+    j["retry_ans"] = retry.answer
+    j["retry"] = {"code": retry.code, "sec": retry.sec, "answer_sha256": answer_sha(retry.answer), "product_ids": retry.product_ids}
+    if retry.answer == src_ans:
+        return done("WARN", "검색 같음 · 다시 물으니 일치 — 재현성 문제(캐시 · 동시 요청), 이관과 무관%s" % tail, diff=True)
+    return done("FAIL", "검색 같음 · 환경이 같은데 문장이 다름 (다시 물어도 다름)%s — 모델 · 설정 확인" % tail, diff=True)
+
+
+def cmd_golden_retry_plan(a):
+    """다시 물을 문항 — 검색 결과는 같고 환경도 소스와 같은데 문장이 다른 문항의 id 를 한 줄에 하나씩."""
+    g = load_golden(a.golden)
+    need_dir(a.raw_dir, "원시 응답")
+    _sm, _tm, pre_ok, det, env_diff = golden_context(g, a.target_meta)
+    for idx, it in enumerate(g["items"], 1):
+        j = golden_judge(it, a.raw_dir, pre_ok, det, env_diff, idx)
+        if j["need_retry"] and j["retry"] is None:
+            out(j["id"])
+    return 0
+
+
 def cmd_golden_compare(a):
     g = load_golden(a.golden)
     need_dir(a.raw_dir, "원시 응답")
-    sm = g["meta"]
-    if os.path.isfile(a.target_meta):
-        tm = read_kv(a.target_meta)
-    else:
-        # 지문이 없으면 전제·진단이 전부 "값 없음" 으로 드러난다 — 여기서 멈추지 않고 ROW 로 남긴다
-        warn("타겟 지문 파일이 없습니다: %s" % a.target_meta)
-        tm = {}
+    sm, tm, pre_ok, det, env_diff = golden_context(g, a.target_meta)
     if a.diff_dir:
         os.makedirs(a.diff_dir, exist_ok=True)
     fails = 0
@@ -741,65 +879,21 @@ def cmd_golden_compare(a):
     gpu_ok = "100% GPU" in t
     emit("env:ollama_processor", s, t, "PASS" if gpu_ok else "WARN",
          "-" if gpu_ok else "타겟 모델이 GPU 에 전부 올라가지 않음")
-    env_diff = [k for k in SAME_ENV_KEYS
-                if meta_val(sm, k) in EMPTY_VALUES or meta_val(tm, k) in EMPTY_VALUES or meta_val(sm, k) != meta_val(tm, k)]
 
+    summary = []
     for idx, it in enumerate(items, 1):
-        qid = str(it.get("id") or "q%02d" % idx)
-        src_ans = it.get("answer") if isinstance(it.get("answer"), str) else None
-        src_prods = it.get("recommendedProducts")
-        base = os.path.join(a.raw_dir, "t-%s" % qid)
-        l3, l2 = Resp(base + "-l3"), Resp(base + "-l2")
-        l3s, l3why = l3_state(l3)
-        l2ok, l2why = l2_state(l2)
-        tgt_ans, tgt_prods = l3.answer, l3.products
-        same_prods = l3.parsed and products_canon(tgt_prods) == products_canon(src_prods)
-        same_ans = src_ans is not None and tgt_ans == src_ans
-        l2_same = l2ok and src_ans is not None and l2.answer == src_ans
-        off = first_diff(src_ans, tgt_ans)
-        src_label = ap_label(src_ans, src_prods)
-        tgt_label = ap_label(tgt_ans, tgt_prods) if l3.parsed else "a:- p:-"
-
-        # 판정 — 응답 비정상 · 추천 상품(검색 결과) 다름은 FAIL. 상품이 같고 문장만 다르면 환경(SAME_ENV_KEYS)이
-        # 소스와 모두 같을 때만 FAIL, 하나라도 다르면 WARN. 유사도는 합격선 없이 기록만 한다
-        res = "FAIL"
-        if it.get("stable") is False:
-            note = "소스 자체 재현 불가 — 이관과 무관"
-        elif it.get("isFallback") is not False or not nonempty_str(src_ans):
-            note = "소스 골든 항목 비정상(fallback·빈 답변) — 이관과 무관"
-        elif l3s != "ok":
-            note = "타겟 응답 비정상 (fallback·오류·빈 답변) · %s" % l3why
-        elif same_prods and same_ans:
-            note = None
-        else:
-            if not same_prods and l2_same:
-                note = "검색 계층 불일치 (생성 동일)"
-            elif same_prods and l2_same:
-                note = "재현성 문제 (캐시·동시 요청)"
-            elif same_prods:
-                note = "생성 계층 불일치"
-            else:
-                note = "검색·생성 모두 불일치"
-            if same_prods:
-                if env_diff:
-                    res = "WARN"
-                    note += " · 추천 상품 같음 · 환경 다름(%s) — 생성 문장이 갈릴 수 있음" % ", ".join(env_diff)
-                else:
-                    note += " · 추천 상품 같음 · 환경이 소스와 같은데 문장 다름 (모델 · 설정 확인)"
-            note += " · 유사도 %.2f" % difflib.SequenceMatcher(None, src_ans or "", tgt_ans or "").ratio()
-            if off is not None:
-                note += " · 첫 차이 %d자" % off
-            if not l2ok:
-                # L2 가 실패했으면 "생성 다름" 은 추정일 뿐이다 — 근거를 밝혀 둔다
-                note += " · L2 응답 비정상(%s)" % l2why
-
-        if note is None:
-            emit(qid, src_label, tgt_label, "PASS", "답변·추천 상품 완전 일치")
-            continue
-        emit(qid, src_label, tgt_label, res, note)
-        if a.diff_dir:
-            write_diff(os.path.join(a.diff_dir, "%s.diff" % qid), qid, it.get("question"), note,
-                       src_ans, tgt_ans, l2.answer, off, src_prods, tgt_prods if l3.parsed else None)
+        j = golden_judge(it, a.raw_dir, pre_ok, det, env_diff, idx)
+        emit(j["id"], j["src_label"], j["tgt_label"], j["result"], j["note"])
+        summary.append({k: j[k] for k in ("id", "question", "result", "note", "overlap", "target", "retry")})
+        if j["diff"] and a.diff_dir:
+            write_diff(os.path.join(a.diff_dir, "%s.diff" % j["id"]), j["id"], j["question"], j["note"],
+                       j["src_ans"], j["tgt_ans"], j["l2_ans"], j["off"], j["src_prods"], j["tgt_prods"], j["retry_ans"])
+    if a.target_out:
+        # 타겟 정리본 — 문항마다 판정 · top-k 일치 · 타겟 응답(상태 · 응답 시간 · 답변 해시 · 검색 결과) · 다시 물은 결과
+        doc = {"format": 1, "deterministic": det, "pre_ok": pre_ok, "env_diff": env_diff,
+               "env": {k: meta_val(tm, k) for k in SAME_ENV_KEYS + PRE_KEYS}, "items": summary}
+        with open(a.target_out, "w", encoding="utf-8", newline="") as f:
+            f.write(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
     return 1 if fails else 0
 
 
@@ -1055,7 +1149,14 @@ def build_parser():
     s.add_argument("--raw-dir", required=True)
     s.add_argument("--target-meta", required=True)
     s.add_argument("--diff-dir")
+    s.add_argument("--target-out", help="타겟 정리본(target-golden.json)을 쓸 곳")
     s.set_defaults(func=cmd_golden_compare)
+
+    s = sub.add_parser("golden-retry-plan", help="다시 물을 골든 문항 (환경이 같은데 문장이 다른 문항)")
+    s.add_argument("--golden", required=True)
+    s.add_argument("--raw-dir", required=True)
+    s.add_argument("--target-meta", required=True)
+    s.set_defaults(func=cmd_golden_retry_plan)
 
     s = sub.add_parser("compare-tsv", help="두 TSV 를 첫 열로 대조 (ROW)")
     s.add_argument("--test", required=True)

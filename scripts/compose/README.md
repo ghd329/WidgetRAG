@@ -146,10 +146,17 @@ curl -fsSL <deploy 주소> | SNAPSHOT_URI=s3://버킷/widgetrag/<시각> LLM_TEM
   `~/widgetrag-run/migration-<시각>/` — 요약은 그 안의 `summary.txt`.
 - **테스트1** (데이터 이관): ① 서비스 · 컨테이너 수와 역할 ② 패키지 파일별 용량 · SHA-256 ③ 데이터 내용 —
   DB 테이블별 행 해시(`chat_log` 는 이관 시점까지, 업로드 경로 접두사는 정규화) · 색인 문서 해시 · 업로드 파일.
-- **테스트2** (LLM 응답 동일성): 골든 질문마다 **추천 상품(검색 결과) 목록 · 순서 동일 + fallback 아님**이면 통과 기준이고,
-  답변 문자열은 **환경(GPU · 드라이버 · Ollama 버전 · 모델 digest)이 소스와 모두 같을 때만** 바이트 단위 동일을 요구한다 (다르면 FAIL).
-  환경이 하나라도 다르면 문장 차이는 WARN 으로 두고 유사도 · 차이 파일(`golden-diff/`)을 남긴다 — GPU 가 바뀌면 온도 0 · seed 고정이어도 문장이 갈릴 수 있다.
-  추천 상품이 다르거나 응답이 비정상이면 FAIL, temperature · seed · 모델이 다르면 비교가 성립하지 않아 FAIL.
+- **테스트2** (LLM 응답 동일성): 골든 질문마다 검색 결과(top-k — 추천 상품 3개의 `productItemId` · 순서)와 답변을 대조한다.
+  LexAI(`deploy/migcompare.py`)와 같은 규칙이다.
+  - 타겟 응답 비정상(오류 · 빈 답변 · fallback) · 검색 결과 ID · 순서가 다름 → FAIL
+  - 검색 같고 문장 같음 → PASS
+  - 검색 같고 문장 다름: 소스끼리도 답이 달랐거나 비결정적 설정(온도 0 · seed 고정 아님) → SKIP(이관과 무관),
+    환경(GPU · 드라이버 · Ollama 버전 · 모델 digest)이 소스와 다르면 WARN,
+    환경이 같으면 한 번 다시 묻고 같아지면 WARN(재현성), 그래도 다르면 FAIL
+  - temperature · seed · 모델이 소스와 다르면 비교가 성립하지 않아 FAIL
+  유사도 · top-k 일치(소스 상품 중 타겟에도 있는 수)는 합격선 없이 기록만 한다. 소스는 `golden.json` 에 회차마다
+  상품 ID · 응답 시간 · 답변 해시와 답변 재현(`stable`) · 검색 재현(`sources_stable`)을, 타겟은 `target-golden.json`(정리본) ·
+  `golden-raw/`(원시 응답) · `golden-diff/`(다른 문항)를 증적 폴더에 남긴다.
 - 이 형태의 Ollama 버전은 llm 이미지 태그가 정한다 (`llm-v0.3.1` = 0.34.3). Shell 설치형(A)도 `OLLAMA_VERSION=0.34.3` 으로
   설치해 맞춘다 (`scripts/local/env.sh` 기본값) — A↔B 교차 이관에서 답변이 갈리지 않게 하는 전제다.
   `llm/Dockerfile` 은 `ollama/ollama:0.34.3` 으로 베이스를 고정해 두어 다시 빌드해도 버전이 바뀌지 않는다.
